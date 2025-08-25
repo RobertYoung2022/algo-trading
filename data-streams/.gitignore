@@ -47,8 +47,8 @@ Thumbs.db
 # Logs
 *.log
 
-# Large CSV files (optional - remove if you want to track them)
-# *.csv
+# Large CSV files (excluded from tracking)
+*.csv
 
 # Jupyter Notebook
 .ipynb_checkpoints
