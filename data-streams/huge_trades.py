@@ -27,6 +27,11 @@ trades_filename = "huge_trades.csv"
 # Minimum trade size to track (in USD)
 MIN_TRADE_SIZE = 500000  # $500k minimum
 
+# Display formatting thresholds
+BLINK_THRESHOLD = 10000000  # $10M - trades ≥ this will blink
+MILLION_THRESHOLD = 1000000  # $1M - trades ≥ this shown as millions
+BILLION_THRESHOLD = 1000000000  # $1B - trades ≥ this shown as billions
+
 # check if the csv files exists
 if not os.path.exists(trades_filename):
     with open(trades_filename, "w") as f:
@@ -76,12 +81,25 @@ class TradeAggregator:
                 attrs = ["bold"]
                 back_color = "on_blue" if not is_buyer_maker else "on_magenta"
                 trad_type = "BUY" if not is_buyer_maker else "SELL"
-                if usd_size >= 3000000:
-                    usd_size_formatted = usd_size / 1000000
-                    cprint(f"\033[5m{trad_type} {symbol} {second} ${usd_size_formatted:.2f}m\033[0m", "white", back_color, attrs=attrs)
+                
+                # Format USD size with appropriate units
+                if usd_size >= BILLION_THRESHOLD:  # ≥ $1B
+                    usd_size_formatted = usd_size / BILLION_THRESHOLD
+                    size_str = f"${usd_size_formatted:.2f}B"
+                elif usd_size >= MILLION_THRESHOLD:  # ≥ $1M
+                    usd_size_formatted = usd_size / MILLION_THRESHOLD
+                    size_str = f"${usd_size_formatted:.2f}M"
+                elif usd_size >= 1000:  # ≥ $1K
+                    usd_size_formatted = usd_size / 1000
+                    size_str = f"${usd_size_formatted:.0f}K"
                 else:
-                    usd_size_formatted = usd_size / 100000 
-                    cprint(f"{trad_type} {symbol} {second} ${usd_size_formatted:.2f}m", "white", back_color, attrs=attrs)
+                    size_str = f"${usd_size:.0f}"
+                
+                # Add blinking effect for very large trades (≥ $10M)
+                if usd_size >= BLINK_THRESHOLD:
+                    cprint(f"\033[5m{trad_type} {symbol} {second} {size_str}\033[0m", "white", back_color, attrs=attrs)
+                else:
+                    cprint(f"{trad_type} {symbol} {second} {size_str}", "white", back_color, attrs=attrs)
 
                 deletions.append(trade_key)
 
