@@ -30,6 +30,8 @@ PING_INTERVAL = 20
 PING_TIMEOUT = 10
 RECV_TIMEOUT = 30.0
 RECONNECT_DELAY = 5
+MAX_RECONNECT_ATTEMPTS = 10
+BACKOFF_MULTIPLIER = 1.5
 
 # Setup logging
 logging.basicConfig(
@@ -48,6 +50,7 @@ class LiquidationMonitor:
         self.start_time = datetime.now()
         self.batch_buffer = []
         self.running = True
+        self.reconnect_attempts = 0
         
         # Initialize CSV file
         self._init_csv_file()
@@ -207,48 +210,95 @@ class LiquidationMonitor:
                        f"Rate: {rate:.1f} msg/min, "
                        f"Uptime: {uptime}")
     
+    async def _handle_websocket_connection(self, websocket):
+        """Handle WebSocket connection with improved ping/pong management"""
+        last_message_time = datetime.now()
+        last_ping_time = datetime.now()
+        
+        while self.running:
+            try:
+                now = datetime.now()
+                
+                # Send ping if needed
+                if (now - last_ping_time).total_seconds() > PING_INTERVAL:
+                    try:
+                        await websocket.ping()
+                        last_ping_time = now
+                        logger.debug("Ping sent successfully")
+                    except Exception as e:
+                        logger.warning(f"Failed to send ping: {e}")
+                        break
+                
+                # Receive message with timeout
+                msg = await asyncio.wait_for(websocket.recv(), timeout=RECV_TIMEOUT)
+                self.message_count += 1
+                last_message_time = now
+                
+                # Reset reconnect attempts on successful message
+                self.reconnect_attempts = 0
+                
+                self._process_message(msg)
+                self._print_stats()
+                
+            except asyncio.TimeoutError:
+                time_since_last = (datetime.now() - last_message_time).total_seconds()
+                logger.warning(f"No messages received for {time_since_last:.1f} seconds. Reconnecting...")
+                break
+            except Exception as e:
+                error_msg = str(e)
+                if "keepalive ping timeout" in error_msg or "1011" in error_msg:
+                    logger.warning(f"WebSocket connection lost (ping timeout). Reconnecting...")
+                else:
+                    logger.error(f"Error processing message: {e}")
+                break
+    
     async def run(self):
-        """Main monitoring loop"""
+        """Main monitoring loop with improved reconnection logic"""
         logger.info("Starting Binance liquidation monitor...")
         
         while self.running:
             try:
                 logger.info(f"Attempting to connect to {WEBSOCKET_URL}...")
                 
+                # Calculate backoff delay
+                if self.reconnect_attempts > 0:
+                    delay = min(RECONNECT_DELAY * (BACKOFF_MULTIPLIER ** (self.reconnect_attempts - 1)), 60)
+                    logger.info(f"Reconnect attempt {self.reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS}. Waiting {delay:.1f} seconds...")
+                    await asyncio.sleep(delay)
+                
                 async with connect(
                     WEBSOCKET_URL,
                     ping_interval=PING_INTERVAL,
-                    ping_timeout=PING_TIMEOUT
+                    ping_timeout=PING_TIMEOUT,
+                    close_timeout=10,
+                    max_size=2**20,  # 1MB max message size
+                    compression=None  # Disable compression for better performance
                 ) as websocket:
                     
                     logger.info("Connected to Binance liquidation stream...")
                     logger.info("Waiting for liquidation data...")
                     
-                    last_message_time = datetime.now()
+                    # Reset reconnect attempts on successful connection
+                    self.reconnect_attempts = 0
                     
-                    while self.running:
-                        try:
-                            # Add timeout to prevent infinite waiting
-                            msg = await asyncio.wait_for(websocket.recv(), timeout=RECV_TIMEOUT)
-                            self.message_count += 1
-                            last_message_time = datetime.now()
-                            
-                            self._process_message(msg)
-                            self._print_stats()
-                            
-                        except asyncio.TimeoutError:
-                            time_since_last = (datetime.now() - last_message_time).total_seconds()
-                            logger.warning(f"No messages received for {time_since_last:.1f} seconds. Reconnecting...")
-                            break
-                        except Exception as e:
-                            logger.error(f"Error processing message: {e}")
-                            continue
+                    await self._handle_websocket_connection(websocket)
                         
             except Exception as e:
-                logger.error(f"Connection error: {e}")
-                if self.running:
-                    logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
-                    await asyncio.sleep(RECONNECT_DELAY)
+                self.reconnect_attempts += 1
+                error_msg = str(e)
+                
+                if "keepalive ping timeout" in error_msg or "1011" in error_msg:
+                    logger.warning(f"Connection timeout (attempt {self.reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS}): {e}")
+                else:
+                    logger.error(f"Connection error (attempt {self.reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS}): {e}")
+                
+                if self.reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+                    logger.error("Max reconnection attempts reached. Shutting down...")
+                    self.running = False
+                    break
+                
+                if not self.running:
+                    break
             
             # Write any remaining batch data before reconnecting
             self._write_batch()
