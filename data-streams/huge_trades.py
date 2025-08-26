@@ -3,10 +3,11 @@ import json
 import os
 from datetime import datetime, timedelta
 import pytz
-from websockets import connect
+from websockets import connect, WebSocketException, ConnectionClosed
 from termcolor import cprint
 import signal
 import sys
+import random
 
 # list of symbols to track
 symbols = [
@@ -31,6 +32,15 @@ MIN_TRADE_SIZE = 500000  # $500k minimum
 BLINK_THRESHOLD = 10000000  # $10M - trades ≥ this will blink
 MILLION_THRESHOLD = 1000000  # $1M - trades ≥ this shown as millions
 BILLION_THRESHOLD = 1000000000  # $1B - trades ≥ this shown as billions
+
+# Connection settings
+MAX_RECONNECT_ATTEMPTS = 10
+BASE_RECONNECT_DELAY = 5  # seconds
+MAX_RECONNECT_DELAY = 300  # 5 minutes
+PING_INTERVAL = 20
+PING_TIMEOUT = 20
+CLOSE_TIMEOUT = 10
+MESSAGE_TIMEOUT = 60
 
 # check if the csv files exists
 if not os.path.exists(trades_filename):
@@ -140,34 +150,144 @@ class TradeAggregator:
 
 trade_aggregator = TradeAggregator(trades_filename)
 
-async def binance_trade_stream(uri, symbol, filename, aggregator):
-    print(f"Connecting to {symbol} stream...")
-    while True:
+class WebSocketManager:
+    def __init__(self, symbol, uri, aggregator):
+        self.symbol = symbol
+        self.uri = uri
+        self.aggregator = aggregator
+        self.reconnect_attempts = 0
+        self.last_reconnect = None
+        self.websocket = None
+        self.is_connected = False
+        self.should_stop = False
+
+    def calculate_reconnect_delay(self):
+        """Calculate exponential backoff delay with jitter"""
+        if self.reconnect_attempts == 0:
+            return BASE_RECONNECT_DELAY
+        
+        delay = min(BASE_RECONNECT_DELAY * (2 ** self.reconnect_attempts), MAX_RECONNECT_DELAY)
+        # Add jitter (±20%) to prevent thundering herd
+        jitter = delay * 0.2 * (random.random() - 0.5)
+        return max(1, delay + jitter)
+
+    async def connect(self):
+        """Establish WebSocket connection with proper error handling"""
         try:
-            async with connect(uri, ping_interval=30, ping_timeout=30, close_timeout=10) as websocket:
-                print(f"Connected to {symbol} stream successfully")
-                while True:
-                    try:
-                        message = await asyncio.wait_for(websocket.recv(), timeout=60)
-                        data = json.loads(message)
-                        usd_size = float(data["p"]) * float(data["q"])
-                        
-                        # Only process trades that meet the minimum size requirement
-                        if usd_size >= MIN_TRADE_SIZE:
-                            trade_time = datetime.fromtimestamp(data["T"] / 1000, pytz.timezone("US/Central"))
-                            readable_trade_time = trade_time.strftime("%H:%M:%S")
-
-                            await aggregator.add_trade(symbol.upper().replace("USDT", ""), readable_trade_time, usd_size, data["m"], data)
-
-                    except asyncio.TimeoutError:
-                        print(f"Timeout on {symbol} stream, reconnecting...")
-                        break
-                    except Exception as e:
-                        print(f"Error processing {symbol} message: {e}")
-                        break
+            self.websocket = await connect(
+                self.uri,
+                ping_interval=PING_INTERVAL,
+                ping_timeout=PING_TIMEOUT,
+                close_timeout=CLOSE_TIMEOUT,
+                max_size=None,  # Allow large messages
+                compression=None  # Disable compression for better reliability
+            )
+            self.is_connected = True
+            self.reconnect_attempts = 0
+            print(f"Connected to {self.symbol} stream successfully")
+            return True
         except Exception as e:
-            print(f"Failed to connect to {symbol} stream: {e}")
-            await asyncio.sleep(5)
+            self.is_connected = False
+            print(f"Failed to connect to {self.symbol} stream: {e}")
+            return False
+
+    async def disconnect(self):
+        """Safely close WebSocket connection"""
+        self.is_connected = False
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except Exception as e:
+                print(f"Error closing {self.symbol} connection: {e}")
+            finally:
+                self.websocket = None
+
+    async def receive_message(self):
+        """Receive and process a single message with timeout"""
+        if not self.websocket or not self.is_connected:
+            return None
+        
+        try:
+            message = await asyncio.wait_for(self.websocket.recv(), timeout=MESSAGE_TIMEOUT)
+            return message
+        except asyncio.TimeoutError:
+            print(f"Timeout on {self.symbol} stream, reconnecting...")
+            return None
+        except ConnectionClosed as e:
+            print(f"Connection closed for {self.symbol}: {e}")
+            return None
+        except WebSocketException as e:
+            print(f"WebSocket error for {self.symbol}: {e}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error receiving message from {self.symbol}: {e}")
+            return None
+
+    async def process_message(self, message):
+        """Process a single message"""
+        try:
+            data = json.loads(message)
+            usd_size = float(data["p"]) * float(data["q"])
+            
+            # Only process trades that meet the minimum size requirement
+            if usd_size >= MIN_TRADE_SIZE:
+                trade_time = datetime.fromtimestamp(data["T"] / 1000, pytz.timezone("US/Central"))
+                readable_trade_time = trade_time.strftime("%H:%M:%S")
+
+                await self.aggregator.add_trade(
+                    self.symbol.upper().replace("USDT", ""), 
+                    readable_trade_time, 
+                    usd_size, 
+                    data["m"], 
+                    data
+                )
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error for {self.symbol}: {e}")
+        except KeyError as e:
+            print(f"Missing key in {self.symbol} message: {e}")
+        except ValueError as e:
+            print(f"Value error processing {self.symbol} message: {e}")
+        except Exception as e:
+            print(f"Error processing {self.symbol} message: {e}")
+
+    async def run(self):
+        """Main connection loop with automatic reconnection"""
+        while not self.should_stop:
+            try:
+                # Connect to WebSocket
+                if not await self.connect():
+                    await self.handle_reconnect()
+                    continue
+
+                # Main message processing loop
+                while self.is_connected and not self.should_stop:
+                    message = await self.receive_message()
+                    if message is None:
+                        break  # Connection lost, will reconnect
+                    
+                    await self.process_message(message)
+
+            except Exception as e:
+                print(f"Unexpected error in {self.symbol} stream: {e}")
+            
+            finally:
+                await self.disconnect()
+                
+            # Handle reconnection
+            if not self.should_stop:
+                await self.handle_reconnect()
+
+    async def handle_reconnect(self):
+        """Handle reconnection with exponential backoff"""
+        self.reconnect_attempts += 1
+        delay = self.calculate_reconnect_delay()
+        
+        print(f"Reconnecting to {self.symbol} in {delay:.1f} seconds (attempt {self.reconnect_attempts})")
+        await asyncio.sleep(delay)
+
+    def stop(self):
+        """Stop the WebSocket manager"""
+        self.should_stop = True
 
 async def print_aggregated_trades_every_seconds(aggregator):
     print("Starting trade aggregation monitor...")
@@ -185,24 +305,31 @@ async def main():
     print(f"Tracking symbols: {symbols}")
     print(f"Minimum trade size: ${MIN_TRADE_SIZE:,}")
     
-    # Create tasks for each symbol
-    trade_stream_tasks = []
+    # Create WebSocket managers for each symbol
+    managers = []
     for symbol in symbols:
-        task = asyncio.create_task(
-            binance_trade_stream(f"{websocket_url_base}{symbol.lower()}@aggTrade", symbol, filename, trade_aggregator)
-        )
-        trade_stream_tasks.append(task)
+        uri = f"{websocket_url_base}{symbol.lower()}@aggTrade"
+        manager = WebSocketManager(symbol, uri, trade_aggregator)
+        managers.append(manager)
     
+    # Create tasks for each manager
+    manager_tasks = [asyncio.create_task(manager.run()) for manager in managers]
     print_task = asyncio.create_task(print_aggregated_trades_every_seconds(trade_aggregator))
     
     print("Connecting to Binance WebSocket streams...")
+    
     try:
-        await asyncio.gather(*trade_stream_tasks, print_task, return_exceptions=True)
+        await asyncio.gather(*manager_tasks, print_task, return_exceptions=True)
     except KeyboardInterrupt:
         print("\nShutting down gracefully...")
-        for task in trade_stream_tasks:
+        for manager in managers:
+            manager.stop()
+        for task in manager_tasks:
             task.cancel()
         print_task.cancel()
+        
+        # Wait for tasks to complete
+        await asyncio.gather(*manager_tasks, print_task, return_exceptions=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
