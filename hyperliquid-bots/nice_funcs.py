@@ -1,4 +1,4 @@
-import nice_funcs as n 
+
 from eth_account.signers.local import LocalAccount
 import eth_account 
 import json 
@@ -37,7 +37,7 @@ def ask_bid(symbol):
 
 def get_sz_px_decimals(coin):
 
-    ''' this returns size devimals and price decimals '''
+    ''' this returns size decimals and price decimals '''
 
     url = 'https://api.hyperliquid.xyz/info'
     headers = {'Content-Type': 'application/json'}
