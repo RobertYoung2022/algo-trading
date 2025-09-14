@@ -34,12 +34,12 @@ A comprehensive algorithmic trading system with data collection, strategy develo
 
 ### 📊 **Data Collection Scripts**
 
-#### Historical Data Collection
-- `coinbase_data_2025.py` - Coinbase Exchange historical data
-- `coingecko_data.py` - CoinGecko historical data  
-- `crypto_compare_data.py` - CryptoCompare historical data
-- `data_from_hl_2025.py` - Hyperliquid historical data
-- `coin_market_cap_data.py` - CoinMarketCap historical data
+#### Historical Data Collection (`/data-scripts/`)
+- `coinbase_historical_data.py` - Coinbase Exchange historical data
+- `coingecko_historical_data.py` - CoinGecko historical data  
+- `cryptocompare_historical_data.py` - CryptoCompare historical data
+- `hyperliquid_historical_data.py` - Hyperliquid historical data (5000 bar limit)
+- `coinmarketcap_historical_data.py` - CoinMarketCap historical data
 
 #### Real-time Data Streams
 - `data-streams/liqs.py` - Binance liquidation monitor
@@ -77,9 +77,9 @@ pip install -r requirements.txt
 ### 3. Data Collection
 ```bash
 # Collect historical data
-python coinbase_data_2025.py
-python coingecko_data.py
-python crypto_compare_data.py
+python data-scripts/coinbase_historical_data.py
+python data-scripts/coingecko_historical_data.py
+python data-scripts/cryptocompare_historical_data.py
 
 # Start real-time monitoring
 python data-streams/liqs.py

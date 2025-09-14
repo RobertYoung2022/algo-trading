@@ -52,7 +52,7 @@ MAX_RETRIES = 3         # Maximum retry attempts for API calls
 RETRY_DELAY = 5         # Seconds to wait between retries
 
 # Coins to monitor closely (add your favorites)
-WATCHLIST = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOT', 'MATIC', 'AVAX', 'LINK', 'UNI']
+WATCHLIST = ['BTC', 'ETH', 'XRP', 'SUI', 'HBAR', 'CRO', 'LINK', 'TAO']
 
 # Load environment variables
 project_root = Path(__file__).parent.parent  # Go up one level to project root

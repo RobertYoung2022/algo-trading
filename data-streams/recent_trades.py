@@ -10,13 +10,12 @@ from termcolor import cprint
 symbols = [
     "BTCUSDT",
     "ETHUSDT",
-    "SOLUSDT",
     "XRPUSDT",
-    "LINKUSDT",
     "SUIUSDT",
     "HBARUSDT",
-    "AAVEUSDT",
-    "OPUSDT",
+    "CROUSDT",
+    "LINKUSDT",
+    "TAOUSDT",
 ]
 
 websocket_url_base = "wss://fstream.binance.com/ws/"
