@@ -13,7 +13,7 @@ This directory contains all historical data collection scripts organized by exch
 - **Best for**: Comprehensive historical analysis, large datasets
 - **Rate limiting**: 0.5 seconds between requests
 
-#### `hyperliquid_historical_data.py` *(formerly data_from_hl_2025.py)*
+#### `hyperliquid_historical_data.py`
 - **Exchange**: Hyperliquid
 - **Data**: OHLCV historical data
 - **Limits**: 5000 bars maximum per request
@@ -54,6 +54,12 @@ python coinbase_historical_data.py
 
 # Fetch recent ETH data from CoinGecko (90 days max)
 python coingecko_historical_data.py
+
+# Fetch ETH data from CryptoCompare (2000 points max)
+python cryptocompare_historical_data.py
+
+# Fetch latest ETH data from CoinMarketCap (limited on free tier)
+python coinmarketcap_historical_data.py
 ```
 
 ### Configuration
