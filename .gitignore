@@ -51,15 +51,26 @@ Thumbs.db
 logs/
 log/
 
-# Data files (keep structure but ignore large generated files)
+# Data files (keep structure but ignore large generated files and sensitive data)
 data/*.csv
 data/*.zip
 data/*.json
+data/*.log
 !data/coinbase/
 !data/coingecko/
 !data/cryptocompare/
 !data/hyperliquid/
 !data/coinmarketcap/
+
+# Sensitive trading data and logs
+data/cmc_monitor/*.csv
+data/cmc_monitor/*.log
+data/live_market/*.json
+data/live_market/*.csv
+data/live_market/*.log
+data-streams/*.csv
+data-streams/*.log
+data-scripts/*.log
 
 # Archive files
 *.zip
@@ -78,10 +89,30 @@ tmp/
 
 # API keys and secrets
 .env
+.env.local
+.env.production
+.env.staging
 dontshare.py
 dontshare_config.py
 secrets.py
 config_secret.py
+*_secret.py
+*_keys.py
+*_credentials.py
+*config.py
+!xconfig.py
+
+# Trading and financial data
+*.csv
+*.json
+*.log
+trades/
+positions/
+orders/
+balances/
+account_*
+wallet_*
+private_*
 
 # Results and outputs
 results/*.csv
