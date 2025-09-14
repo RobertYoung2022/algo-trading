@@ -14,7 +14,6 @@ STEPS TO USE:
 
 MONITORING FEATURES:
 - Global cryptocurrency market metrics
-- Top cryptocurrencies by market cap
 - Personal watchlist monitoring
 - Price change alerts
 - Volume spike detection
@@ -60,13 +59,12 @@ RETRY_DELAY = 5         # Seconds to wait between retries
 
 # Coins to monitor closely (add your favorites)
 WATCHLIST = ['BTC', 'ETH', 'XRP', 'SUI', 'HBAR', 'CRO', 'LINK', 'TAO']
+STOCK_WATCHLIST = ['BTBT', 'HOOD', 'COIN', 'NKE', 'SPY', 'QQQ']  # Stock symbols to monitor
 
 # Sentiment Analysis Configuration
 ENABLE_SENTIMENT_ANALYSIS = True  # Enable/disable sentiment features
 ENABLE_FEAR_GREED = True         # Enable Fear & Greed Index
-ENABLE_SOCIAL_SENTIMENT = True   # Enable social media sentiment tracking
 SENTIMENT_UPDATE_INTERVAL = 120  # Update sentiment every 2 minutes
-SOCIAL_PLATFORMS = ['twitter', 'reddit']  # Platforms to track
 
 # Load environment variables
 project_root = Path(__file__).parent.parent  # Go up one level to project root
@@ -108,18 +106,26 @@ class CMCRealTimeMonitor:
         
         # Sentiment tracking
         self.fear_greed_index = None
+        self.fear_greed_last_fetch = None
+        self.fear_greed_cache = None
         self.market_sentiment = None
-        self.social_sentiment = {}
         self.last_sentiment_update = time.time()  # Initialize to current time
+
+        # Top cryptocurrencies caching to reduce API calls
+        self.top_crypto_cache = None
+        self.top_crypto_last_update = None
+        self.top_crypto_cache_duration = 300  # Cache for 5 minutes (300 seconds)
         
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
         logger.info("🌙 BobbyYo's CMC Real-Time Monitor Initialized! 🚀")
-        logger.info(f"Configuration: {REFRESH_INTERVAL}s interval, {TOP_COINS_LIMIT} top coins, Watchlist: {WATCHLIST}")
+        logger.info(f"Configuration: {REFRESH_INTERVAL}s interval, Watchlist: {WATCHLIST}")
+        if STOCK_WATCHLIST:
+            logger.info(f"Stock Watchlist: {STOCK_WATCHLIST}")
         if ENABLE_SENTIMENT_ANALYSIS:
-            logger.info(f"Sentiment Analysis: Fear & Greed: {ENABLE_FEAR_GREED}, Social Media: {ENABLE_SOCIAL_SENTIMENT}")
+            logger.info(f"Sentiment Analysis: Fear & Greed: {ENABLE_FEAR_GREED}")
     
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals gracefully"""
@@ -183,51 +189,71 @@ class CMCRealTimeMonitor:
             return None
     
     def get_fear_greed_index(self):
-        """Get Fear & Greed Index from Alternative.me API"""
+        """Get Fear & Greed Index from Alternative.me API (cached for efficiency)"""
+        now = datetime.datetime.now()
+
+        # Check if we have cached data and if it's still valid
+        if (self.fear_greed_cache and self.fear_greed_last_fetch and
+            (now - self.fear_greed_last_fetch).total_seconds() < 3600):  # Cache for 1 hour
+            self.fear_greed_cache['cached'] = True
+            return self.fear_greed_cache
+
         try:
             response = requests.get('https://api.alternative.me/fng/', timeout=10)
+
             if response.status_code == 200:
                 data = response.json()
-                if 'data' and len(data['data']) > 0:
+
+                # CRITICAL FIX: Changed 'data' to 'data' in data
+                if 'data' in data and len(data['data']) > 0:
                     fng_data = data['data'][0]
-                    return {
+
+                    self.fear_greed_cache = {
                         'value': int(fng_data['value']),
                         'value_classification': fng_data['value_classification'],
                         'timestamp': fng_data['timestamp'],
                         'time_until_update': fng_data.get('time_until_update', '0'),
-                        'fetch_time': datetime.datetime.now().isoformat()
+                        'fetch_time': now.isoformat(),
+                        'cached': False
                     }
+                    self.fear_greed_last_fetch = now
+                    logger.info(f"🎯 Fear & Greed Index fetched: {self.fear_greed_cache['value']}/100 ({self.fear_greed_cache['value_classification']})")
+                    return self.fear_greed_cache
+                else:
+                    logger.error("🎯 Fear & Greed API response missing data")
             else:
-                logger.warning(f"Fear & Greed API returned status {response.status_code}")
+                logger.warning(f"🎯 Fear & Greed API returned status {response.status_code}")
+                # Return cached data if available, even if stale
+                if self.fear_greed_cache:
+                    self.fear_greed_cache['cached'] = True
+                    return self.fear_greed_cache
                 return None
         except Exception as e:
-            logger.error(f"Error fetching Fear & Greed Index: {e}")
+            logger.error(f"🎯 Error fetching Fear & Greed Index: {e}")
+            # Return cached data if available, even if stale
+            if self.fear_greed_cache:
+                self.fear_greed_cache['cached'] = True
+                return self.fear_greed_cache
             return None
     
-    def analyze_market_sentiment(self, global_data, top_coins):
-        """Analyze overall market sentiment based on multiple indicators"""
-        if not global_data or not top_coins:
+    def analyze_market_sentiment(self, watchlist_data):
+        """Analyze overall market sentiment based on watchlist indicators"""
+        if not watchlist_data:
             return None
-        
+
         try:
             sentiment_score = 0
             indicators = []
-            
-            # Analyze Bitcoin dominance
-            btc_dominance = global_data.get('bitcoin_dominance', 50)
-            if btc_dominance > 55:
-                sentiment_score += 20  # High BTC dominance = bullish
-                indicators.append(f"High BTC dominance ({btc_dominance:.1f}%)")
-            elif btc_dominance < 45:
-                sentiment_score -= 10  # Low BTC dominance = bearish
-                indicators.append(f"Low BTC dominance ({btc_dominance:.1f}%)")
             
             # Analyze top 10 coins price changes
             positive_changes = 0
             negative_changes = 0
             total_volume_change = 0
             
-            for coin in top_coins[:10]:
+            # Filter crypto coins from watchlist (exclude stocks)
+            crypto_coins = [coin for coin in watchlist_data if coin.get('symbol', '') in WATCHLIST]
+
+            for coin in crypto_coins:
                 change_24h = coin.get('change_24h', 0)
                 volume_24h = coin.get('volume_24h', 0)
                 
@@ -240,7 +266,11 @@ class CMCRealTimeMonitor:
                 total_volume_change += volume_24h * (1 + change_24h/100)
             
             # Market breadth analysis
-            market_breadth = (positive_changes / 10) * 100
+            total_coins = len(crypto_coins)
+            if total_coins > 0:
+                market_breadth = (positive_changes / total_coins) * 100
+            else:
+                market_breadth = 50  # Neutral if no coins
             if market_breadth > 70:
                 sentiment_score += 30
                 indicators.append(f"Strong market breadth ({market_breadth:.0f}% positive)")
@@ -281,6 +311,7 @@ class CMCRealTimeMonitor:
                 'market_breadth': market_breadth,
                 'positive_coins': positive_changes,
                 'negative_coins': negative_changes,
+                'total_coins': total_coins,
                 'timestamp': datetime.datetime.now().isoformat()
             }
             
@@ -288,70 +319,6 @@ class CMCRealTimeMonitor:
             logger.error(f"Error analyzing market sentiment: {e}")
             return None
     
-    def get_social_sentiment(self):
-        """Get social media sentiment data (simulated - in real implementation, use APIs like Twitter, Reddit)"""
-        try:
-            # Note: This is a simulated implementation
-            # In production, you would integrate with:
-            # - Twitter API v2 for sentiment analysis
-            # - Reddit API for r/cryptocurrency sentiment
-            # - Social sentiment APIs like Social Sentiment API
-            
-            current_time = datetime.datetime.now()
-            
-            # Simulate social sentiment data
-            social_data = {}
-            
-            for platform in SOCIAL_PLATFORMS:
-                # Simulate sentiment scores (-100 to +100)
-                sentiment_score = np.random.randint(-30, 40)  # Slightly bullish bias
-                
-                if sentiment_score > 20:
-                    classification = "Bullish"
-                    color = "green"
-                elif sentiment_score > -20:
-                    classification = "Neutral"
-                    color = "yellow"
-                else:
-                    classification = "Bearish"
-                    color = "red"
-                
-                social_data[platform] = {
-                    'sentiment_score': sentiment_score,
-                    'classification': classification,
-                    'color': color,
-                    'mentions_24h': np.random.randint(1000, 50000),
-                    'engagement_rate': np.random.uniform(0.02, 0.08),
-                    'top_keywords': ['bitcoin', 'ethereum', 'crypto', 'bullish', 'moon'],
-                    'timestamp': current_time.isoformat()
-                }
-            
-            # Calculate overall social sentiment
-            avg_sentiment = sum(data['sentiment_score'] for data in social_data.values()) / len(social_data)
-            total_mentions = sum(data['mentions_24h'] for data in social_data.values())
-            
-            if avg_sentiment > 15:
-                overall_classification = "Bullish"
-                overall_color = "green"
-            elif avg_sentiment > -15:
-                overall_classification = "Neutral"
-                overall_color = "yellow"
-            else:
-                overall_classification = "Bearish"
-                overall_color = "red"
-            
-            return {
-                'platforms': social_data,
-                'overall_sentiment': avg_sentiment,
-                'overall_classification': overall_classification,
-                'overall_color': overall_color,
-                'total_mentions_24h': total_mentions,
-                'timestamp': current_time.isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"Error getting social sentiment: {e}")
-            return None
     
     def get_global_metrics(self):
         """Get global cryptocurrency market metrics from unified collector data"""
@@ -401,46 +368,157 @@ class CMCRealTimeMonitor:
             logger.error(f"Error reading global metrics from local data: {e}")
             return None
     
-    def get_top_cryptocurrencies(self, limit=TOP_COINS_LIMIT):
-        """Get top cryptocurrencies by market cap from unified collector data"""
+    def get_top_cryptocurrencies(self, limit=20):
+        """Get top 20 cryptocurrencies by market cap from CoinGecko API with caching and retry logic"""
+        import time
+
+        # Check if cached data is still valid (less than 5 minutes old)
+        current_time = time.time()
+        if (self.top_crypto_cache is not None and
+            self.top_crypto_last_update is not None and
+            (current_time - self.top_crypto_last_update) < self.top_crypto_cache_duration):
+            logger.debug("Using cached top cryptocurrency data")
+            return self.top_crypto_cache
+
+        logger.debug("Cache expired or empty, fetching new top cryptocurrency data")
+        max_retries = 3
+        base_delay = 5  # Increased to 5 seconds to respect rate limits
+
+        for attempt in range(max_retries):
+            try:
+                logger.debug(f"Fetching top cryptocurrencies from CoinGecko API (attempt {attempt + 1}/{max_retries})")
+
+                # CoinGecko API endpoint for top coins by market cap
+                url = f"https://api.coingecko.com/api/v3/coins/markets"
+                params = {
+                    'vs_currency': 'usd',
+                    'order': 'market_cap_desc',
+                    'per_page': limit,
+                    'page': 1,
+                    'sparkline': False,
+                    'price_change_percentage': '24h'
+                }
+
+                response = requests.get(url, params=params, timeout=10)
+
+                if response.status_code == 200:
+                    break
+                elif response.status_code == 429:  # Rate limited
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"CoinGecko rate limited, retrying in {delay}s...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.warning("CoinGecko rate limit exceeded, using fallback")
+                        return self.get_top_cryptocurrencies_fallback(limit)
+                else:
+                    logger.warning(f"CoinGecko API error: {response.status_code}")
+                    if attempt < max_retries - 1:
+                        time.sleep(base_delay * (attempt + 1))
+                        continue
+                    else:
+                        return self.get_top_cryptocurrencies_fallback(limit)
+
+            except requests.RequestException as e:
+                logger.warning(f"CoinGecko request failed (attempt {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(base_delay * (attempt + 1))
+                    continue
+                else:
+                    return self.get_top_cryptocurrencies_fallback(limit)
+
+            # Process successful response
+            data = response.json()
+            coins = []
+
+            for i, coin in enumerate(data, 1):
+                coins.append({
+                    'rank': i,
+                    'symbol': coin.get('symbol', '').upper(),
+                    'name': coin.get('name', ''),
+                    'price': coin.get('current_price', 0),
+                    'market_cap': coin.get('market_cap', 0),
+                    'volume_24h': coin.get('total_volume', 0),  # This is USD volume for CoinGecko
+                    'change_1h': 0,  # Not in this endpoint
+                    'change_24h': coin.get('price_change_percentage_24h', 0),
+                    'change_7d': 0,  # Not in this endpoint
+                    'last_updated': coin.get('last_updated', ''),
+                    'timestamp': datetime.datetime.now().isoformat()
+                })
+
+            logger.debug(f"Successfully fetched {len(coins)} top cryptocurrencies from CoinGecko")
+
+            # Cache the successful result
+            self.top_crypto_cache = coins
+            self.top_crypto_last_update = current_time
+            logger.debug(f"Cached top cryptocurrency data for {self.top_crypto_cache_duration} seconds")
+
+            return coins
+
+        # If all retries failed, use fallback
+        logger.warning("All CoinGecko retry attempts failed, using fallback")
+        return self.get_top_cryptocurrencies_fallback(limit)
+
+    def get_top_cryptocurrencies_fallback(self, limit=20):
+        """Fallback: Use known top cryptocurrencies list with current price data"""
         try:
-            # Read from unified collector's current prices file (use absolute path)
+            # Known top 20 cryptocurrencies by market cap (updated manually as needed)
+            # This list changes slowly, so it's safe to hardcode
+            top_crypto_symbols = [
+                'BTC', 'ETH', 'XRP', 'USDT', 'SOL', 'BNB', 'USDC', 'DOGE',
+                'ADA', 'TRX', 'WSTETH', 'LINK', 'WBETH', 'WBTC', 'HYPE',
+                'USDE', 'SUI', 'AVAX', 'XLM', 'HBAR'
+            ]
+
+            # Read current prices from unified collector
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             current_prices_file = os.path.join(project_root, 'data', 'live_market', 'current_prices.json')
 
             if not os.path.exists(current_prices_file):
-                logger.warning("Current prices file not found. Make sure unified_ohlcv_collector.py is running.")
-                return []
+                logger.warning("Current prices file not found. Using watchlist data only.")
+                return self.get_watchlist_data_as_top_list()
 
             with open(current_prices_file, 'r') as f:
                 prices_data = json.load(f)
 
-            # Convert to list format and sort by market cap
+            # Build list using known top cryptos with available price data
             coins = []
-            for symbol, data in prices_data.items():
-                coins.append({
-                    'rank': 0,  # Will be set after sorting
-                    'symbol': symbol,
-                    'name': symbol,  # Use symbol as name for now
-                    'price': data.get('price', 0),
-                    'market_cap': data.get('market_cap', 0),
-                    'volume_24h': data.get('volume_24h', 0),
-                    'change_1h': 0,  # Not available from unified collector
-                    'change_24h': data.get('change_24h', 0),
-                    'change_7d': 0,  # Not available from unified collector
-                    'last_updated': data.get('timestamp', ''),
-                    'timestamp': datetime.datetime.now().isoformat()
-                })
+            coin_names = {  # Known full names for display
+                'BTC': 'Bitcoin', 'ETH': 'Ethereum', 'XRP': 'Ripple', 'USDT': 'Tether',
+                'SOL': 'Solana', 'BNB': 'BNB', 'USDC': 'USD Coin', 'DOGE': 'Dogecoin',
+                'ADA': 'Cardano', 'TRX': 'TRON', 'WSTETH': 'Wrapped stETH', 'LINK': 'Chainlink',
+                'WBETH': 'Wrapped Beacon ETH', 'WBTC': 'Wrapped Bitcoin', 'HYPE': 'Hyperliquid',
+                'USDE': 'USDe', 'SUI': 'Sui', 'AVAX': 'Avalanche', 'XLM': 'Stellar', 'HBAR': 'Hedera'
+            }
+
+            for rank, symbol in enumerate(top_crypto_symbols[:limit], 1):
+                if symbol in prices_data:
+                    data = prices_data[symbol]
+                    coins.append({
+                        'rank': rank,
+                        'symbol': symbol,
+                        'name': coin_names.get(symbol, symbol),
+                        'price': data.get('price', 0),
+                        'market_cap': data.get('market_cap', 0),
+                        'volume_24h': data.get('volume_24h', 0),
+                        'change_1h': 0,  # Not available from unified collector
+                        'change_24h': data.get('change_24h', 0),
+                        'change_7d': 0,  # Not available from unified collector
+                        'last_updated': data.get('timestamp', ''),
+                        'timestamp': datetime.datetime.now().isoformat()
+                    })
 
             # Sort by market cap (descending) and assign ranks
             coins.sort(key=lambda x: x['market_cap'], reverse=True)
             for i, coin in enumerate(coins[:limit], 1):
                 coin['rank'] = i
 
+            logger.debug(f"Using fallback data with {len(coins)} cryptocurrencies")
             return coins[:limit]
 
         except Exception as e:
-            logger.error(f"Error reading top cryptocurrencies from local data: {e}")
+            logger.error(f"Error reading fallback cryptocurrency data: {e}")
             return []
     
     def get_watchlist_data(self):
@@ -476,7 +554,10 @@ class CMCRealTimeMonitor:
                         'change_24h': data.get('change_24h', 0),
                         'change_7d': 0,  # Not available from unified collector
                         'last_updated': data.get('timestamp', ''),
-                        'timestamp': datetime.datetime.now().isoformat()
+                        'timestamp': datetime.datetime.now().isoformat(),
+                        'price_variance': data.get('price_variance', {}),
+                        'all_sources': data.get('all_sources', []),
+                        'source_count': data.get('source_count', 1)
                     })
                 else:
                     logger.debug(f"Symbol {symbol} not found in unified collector data")
@@ -488,7 +569,125 @@ class CMCRealTimeMonitor:
             logger.error(f"Error reading watchlist data from local data: {e}")
             logger.error(f"Watchlist: {WATCHLIST}")
             return []
-    
+
+    def get_stock_data(self):
+        """Get data for stock symbols from unified collector data"""
+        if not STOCK_WATCHLIST:
+            return []
+
+        try:
+            # Read from unified collector's current prices file (use absolute path)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            current_prices_file = os.path.join(project_root, 'data', 'live_market', 'current_prices.json')
+
+            if not os.path.exists(current_prices_file):
+                logger.warning("Current prices file not found. Make sure unified_ohlcv_collector.py is running.")
+                return []
+
+            with open(current_prices_file, 'r') as f:
+                prices_data = json.load(f)
+
+            stock_data = []
+
+            # Extract data for stock symbols
+            for symbol in STOCK_WATCHLIST:
+                if symbol in prices_data:
+                    data = prices_data[symbol]
+                    stock_data.append({
+                        'symbol': symbol,
+                        'name': symbol,  # Use symbol as name for now
+                        'price': data.get('price', 0),
+                        'market_cap': data.get('market_cap', 0),
+                        'volume_24h': data.get('volume_24h', 0),
+                        'change_1h': 0,  # Not available from unified collector
+                        'change_24h': data.get('change_24h', 0),
+                        'change_7d': 0,  # Not available from unified collector
+                        'last_updated': data.get('timestamp', ''),
+                        'timestamp': datetime.datetime.now().isoformat()
+                    })
+                else:
+                    logger.debug(f"Stock symbol {symbol} not found in unified collector data")
+
+            logger.debug(f"Retrieved stock data for {len(stock_data)} symbols from local data")
+            return stock_data
+
+        except Exception as e:
+            logger.error(f"Error reading stock data from local data: {e}")
+            logger.error(f"Stock watchlist: {STOCK_WATCHLIST}")
+            return []
+
+    def detect_arbitrage_opportunities(self, data, min_spread_percent=0.1):
+        """Detect arbitrage opportunities from multi-source price data"""
+        opportunities = []
+
+        for item in data:
+            symbol = item.get('symbol', '')
+            price_variance = item.get('price_variance', {})
+
+            if not price_variance or 'min' not in price_variance or 'max' not in price_variance:
+                continue
+
+            min_price = price_variance.get('min', 0)
+            max_price = price_variance.get('max', 0)
+            avg_price = price_variance.get('avg', 0)
+
+            if min_price > 0 and max_price > min_price:
+                spread_percent = ((max_price - min_price) / avg_price) * 100
+
+                if spread_percent >= min_spread_percent:
+                    opportunities.append({
+                        'symbol': symbol,
+                        'min_price': min_price,
+                        'max_price': max_price,
+                        'avg_price': avg_price,
+                        'spread_percent': spread_percent,
+                        'spread_absolute': max_price - min_price,
+                        'all_sources': item.get('all_sources', []),
+                        'source_count': item.get('source_count', 0)
+                    })
+
+        # Sort by spread percentage (highest first)
+        opportunities.sort(key=lambda x: x['spread_percent'], reverse=True)
+        return opportunities
+
+    def display_arbitrage_opportunities(self, opportunities):
+        """Display cross-exchange arbitrage opportunities"""
+        if not opportunities:
+            return
+
+        print("\n" + "="*100)
+        cprint("🔀 PRICE DIFFERENCES ACROSS DATA SOURCES", "yellow", attrs=["bold"])
+        cprint("💡 Find price gaps between exchanges that may indicate trading opportunities", "cyan")
+        print("="*100)
+
+        # Header
+        headers = ["Symbol", "Sources", "Low Price", "High Price", "Spread %", "Spread $", "Profit Potential"]
+        print(f"{'Symbol':<8} {'Sources':<10} {'Low Price':<12} {'High Price':<12} {'Spread %':<10} {'Spread $':<12} {'Profit':<15}")
+        print("-" * 100)
+
+        for opp in opportunities:
+            symbol = opp['symbol']
+            sources = f"{opp['source_count']} sources"
+            low_price = f"${opp['min_price']:,.2f}" if opp['min_price'] >= 1 else f"${opp['min_price']:.6f}"
+            high_price = f"${opp['max_price']:,.2f}" if opp['max_price'] >= 1 else f"${opp['max_price']:.6f}"
+            spread_pct = f"{opp['spread_percent']:.2f}%"
+            spread_abs = f"${opp['spread_absolute']:,.2f}" if opp['spread_absolute'] >= 1 else f"${opp['spread_absolute']:.6f}"
+
+            # Simple profit potential indicator
+            if opp['spread_percent'] >= 2.0:
+                profit = "🟢 High"
+            elif opp['spread_percent'] >= 1.0:
+                profit = "🟡 Medium"
+            else:
+                profit = "🔵 Low"
+
+            print(f"{symbol:<8} {sources:<10} {low_price:<12} {high_price:<12} {spread_pct:<10} {spread_abs:<12} {profit:<15}")
+
+        print()
+        print("💡 Data Sources: Yahoo Finance, Coinbase Exchange, CoinGecko API")
+        print("⚠️  These are price differences between data feeds - not guaranteed arbitrage opportunities")
+        print("🔎 Real trading requires: account access, sufficient liquidity, fee calculations, and timing")
+
     def detect_alerts(self, current_data_dict, previous_data):
         """Detect price and volume alerts"""
         alerts = []
@@ -531,14 +730,20 @@ class CMCRealTimeMonitor:
                             'current_change_24h': current_change
                         })
 
-                    # Volume spike alert
+                    # Volume spike alert - improved logic to prevent false alarms
                     current_volume = coin.get('volume_24h', 0)
                     prev_volume = prev_coin.get('volume_24h', 0)
 
-                    # Ensure volumes are numeric
+                    # Ensure volumes are numeric and both are reasonably sized
                     if isinstance(current_volume, (int, float)) and isinstance(prev_volume, (int, float)) and prev_volume > 0:
                         volume_change = ((current_volume - prev_volume) / prev_volume) * 100
-                        if abs(volume_change) >= MIN_VOLUME_CHANGE:
+
+                        # Prevent false alerts from data source switching
+                        # Skip alert if volumes differ by extreme amounts (likely different data sources)
+                        volume_ratio = max(current_volume, prev_volume) / min(current_volume, prev_volume)
+
+                        # Only alert if volume change is significant but not from data source mismatch
+                        if abs(volume_change) >= MIN_VOLUME_CHANGE and volume_ratio < 1000:  # Less than 1000x difference
                             alerts.append({
                                 'type': 'volume_spike',
                                 'symbol': symbol,
@@ -553,37 +758,19 @@ class CMCRealTimeMonitor:
             logger.error(f"Previous data types: {type(previous_data)}")
             return []
     
-    def display_global_metrics(self, global_data):
-        """Display global market metrics"""
-        if not global_data:
-            return
-        
-        print("\n" + "="*70)
-        cprint("🌍 GLOBAL CRYPTO MARKET METRICS", "cyan", attrs=["bold"])
-        print("="*70)
-        
-        total_mcap = global_data['total_market_cap'] / 1e12 if global_data['total_market_cap'] else 0
-        total_volume = global_data['total_volume_24h'] / 1e9 if global_data['total_volume_24h'] else 0
-        
-        cprint(f"📊 Total Market Cap: ${total_mcap:.2f}T", "green")
-        cprint(f"📈 24h Volume: ${total_volume:.2f}B", "blue")
-        cprint(f"₿ Bitcoin Dominance: {global_data['bitcoin_dominance']:.1f}%", "yellow")
-        cprint(f"⟠ Ethereum Dominance: {global_data['ethereum_dominance']:.1f}%", "magenta")
-        cprint(f"🪙 Active Cryptocurrencies: {global_data['active_cryptocurrencies']:,}", "white")
-        cprint(f"🏪 Active Exchanges: {global_data['active_exchanges']:,}", "white")
     
     def display_top_coins(self, coins):
         """Display top cryptocurrencies"""
         if not coins:
             return
         
-        print("\n" + "="*90)
+        print("\n" + "="*100)
         cprint("📈 TOP CRYPTOCURRENCIES BY MARKET CAP", "cyan", attrs=["bold"])
-        print("="*90)
+        print("="*100)
         
-        header = f"{'Rank':<4} {'Symbol':<8} {'Price':<15} {'Change 24h':<12} {'Market Cap':<18} {'Volume 24h':<15}"
+        header = f"{'Rank':<4} {'Symbol':<8} {'Price':<15} {'Change 24h':<15} {'Market Cap':<15} {'Volume 24h':<15}"
         cprint(header, "white", attrs=["bold"])
-        print("-" * 90)
+        print("-" * 100)
         
         for coin in coins[:TOP_COINS_LIMIT]:
             # Color code based on 24h change
@@ -605,9 +792,24 @@ class CMCRealTimeMonitor:
                 price_str = f"${price:.6f}"
             
             market_cap = coin.get('market_cap', 0) / 1e9 if coin.get('market_cap') else 0
-            volume = coin.get('volume_24h', 0) / 1e6 if coin.get('volume_24h') else 0
-            
-            line = f"{coin.get('rank', 0):<4} {coin.get('symbol', ''):<8} {price_str:<15} {change_symbol} {change_24h:+.1f}%{'':<5} ${market_cap:.1f}B{'':<8} ${volume:.1f}M"
+
+            # Handle volume display - CoinGecko gives USD volume, local data gives coin volume
+            volume_24h = coin.get('volume_24h', 0)
+            if volume_24h > 1000000:  # If > 1M, likely already USD from CoinGecko
+                volume_str = f"${volume_24h/1e6:.0f}M"
+            elif volume_24h > 0:  # Local data in coin units, convert to USD
+                price = coin.get('price', 0)
+                if price > 0:
+                    volume_usd = (volume_24h * price) / 1e6
+                    volume_str = f"${volume_usd:.0f}M"
+                else:
+                    volume_str = f"{volume_24h:.1f}"  # Show coin volume
+            else:
+                volume_str = "$0M"
+
+            change_str = f"{change_symbol} {change_24h:+.1f}%"
+            market_cap_str = f"${market_cap:.1f}B"
+            line = f"{coin.get('rank', 0):<4} {coin.get('symbol', ''):<8} {price_str:<15} {change_str:<15} {market_cap_str:<15} {volume_str:<15}"
             cprint(line, change_color)
     
     def display_watchlist(self, watchlist_data):
@@ -615,14 +817,14 @@ class CMCRealTimeMonitor:
         if not watchlist_data:
             return
 
-        print("\n" + "="*70)
+        print("\n" + "="*75)
         cprint("⭐ YOUR WATCHLIST", "cyan", attrs=["bold"])
-        print("="*70)
+        print("="*75)
 
         # Add column headers
-        header = f"{'Symbol':<8} {'Price':<15} {'Change 24h':<12} {'Market Cap':<15}"
+        header = f"{'Symbol':<8} {'Price':<15} {'Change 24h':<15} {'Market Cap':<15} {'Volume 24h':<15}"
         cprint(header, "white", attrs=["bold"])
-        print("-" * 70)
+        print("-" * 75)
 
         for coin in watchlist_data:
             change_24h = coin.get('change_24h', 0)
@@ -640,10 +842,78 @@ class CMCRealTimeMonitor:
                 price_str = f"${price:.6f}"
             
             market_cap = coin.get('market_cap', 0) / 1e9 if coin.get('market_cap') else 0
-            
-            line = f"{coin.get('symbol', ''):<8} {price_str:<15} {change_24h:+.1f}%{'':<8} ${market_cap:.1f}B"
+            change_str = f"{change_24h:+.1f}%"
+            market_cap_str = f"${market_cap:.1f}B"
+
+            # Handle volume display for watchlist
+            volume_24h = coin.get('volume_24h', 0)
+            if volume_24h > 1000000:  # If > 1M, likely already USD
+                volume_str = f"${volume_24h/1e6:.0f}M"
+            elif volume_24h > 0:  # Local data in coin units, convert to USD
+                price = coin.get('price', 0)
+                if price > 0:
+                    volume_usd = (volume_24h * price) / 1e6
+                    volume_str = f"${volume_usd:.0f}M"
+                else:
+                    volume_str = f"{volume_24h:.1f}"
+            else:
+                volume_str = "$0M"
+
+            line = f"{coin.get('symbol', ''):<8} {price_str:<15} {change_str:<15} {market_cap_str:<15} {volume_str:<15}"
             cprint(line, change_color)
-    
+
+    def display_stocks(self, stock_data):
+        """Display stock symbols with stock-specific metrics"""
+        if not stock_data:
+            return
+
+        print("\n" + "="*85)
+        cprint("📊 STOCK WATCHLIST", "magenta", attrs=["bold"])
+        print("="*85)
+
+        # Add column headers for stock-specific info
+        header = f"{'Symbol':<8} {'Company':<12} {'Price':<12} {'Volume':<12} {'Market Cap':<15} {'Status':<10}"
+        cprint(header, "white", attrs=["bold"])
+        print("-" * 85)
+
+        # Stock name mapping for display
+        stock_names = {
+            'BTBT': 'Bit Digital',
+            'HOOD': 'Robinhood',
+            'COIN': 'Coinbase',
+            'NKE': 'Nike',
+            'SPY': 'S&P 500 ETF',
+            'QQQ': 'Nasdaq ETF'
+        }
+
+        for stock in stock_data:
+            symbol = stock.get('symbol', '')
+            company_name = stock_names.get(symbol, symbol)
+
+            change_24h = stock.get('change_24h', 0)
+            if change_24h > 0:
+                change_color = "green"
+                status = "📈 UP"
+            elif change_24h < 0:
+                change_color = "red"
+                status = "📉 DOWN"
+            else:
+                change_color = "yellow"
+                status = "🔒 CLOSED"  # Markets closed
+
+            price = stock.get('price', 0)
+            price_str = f"${price:,.2f}"
+
+            # Volume in millions for stocks
+            volume_24h = stock.get('volume_24h', 0)
+            volume_str = f"{volume_24h/1e6:.1f}M" if volume_24h > 0 else "N/A"
+
+            market_cap = stock.get('market_cap', 0) / 1e9 if stock.get('market_cap') else 0
+            market_cap_str = f"${market_cap:.1f}B"
+
+            line = f"{symbol:<8} {company_name:<12} {price_str:<12} {volume_str:<12} {market_cap_str:<15} {status:<10}"
+            cprint(line, change_color)
+
     def display_alerts(self, alerts):
         """Display price and volume alerts"""
         if not alerts:
@@ -680,7 +950,8 @@ class CMCRealTimeMonitor:
             return
         
         print("\n" + "="*70)
-        cprint("😨 FEAR & GREED INDEX", "cyan", attrs=["bold"])
+        cache_status = " (Cached)" if fng_data.get('cached', False) else ""
+        cprint(f"😨 FEAR & GREED INDEX{cache_status} (Real-time API: Alternative.me)", "cyan", attrs=["bold"])
         print("="*70)
         
         value = int(fng_data['value'])
@@ -743,7 +1014,7 @@ class CMCRealTimeMonitor:
             return
         
         print("\n" + "="*70)
-        cprint("📊 MARKET SENTIMENT ANALYSIS", "cyan", attrs=["bold"])
+        cprint("📊 MARKET SENTIMENT ANALYSIS (Live Data Calculation)", "cyan", attrs=["bold"])
         print("="*70)
         
         score = sentiment_data['score']
@@ -754,8 +1025,9 @@ class CMCRealTimeMonitor:
         cprint(f"🎯 Sentiment Score: {score}/100", color, attrs=["bold"])
         cprint(f"📈 Classification: {classification}", color)
         cprint(f"📊 Market Breadth: {market_breadth:.1f}% positive", "white")
-        cprint(f"✅ Positive Coins: {sentiment_data['positive_coins']}/10", "green")
-        cprint(f"❌ Negative Coins: {sentiment_data['negative_coins']}/10", "red")
+        total_coins = sentiment_data.get('total_coins', 10)  # fallback to 10 for backward compatibility
+        cprint(f"✅ Positive Coins: {sentiment_data['positive_coins']}/{total_coins}", "green")
+        cprint(f"❌ Negative Coins: {sentiment_data['negative_coins']}/{total_coins}", "red")
         
         # Display key indicators
         if sentiment_data['indicators']:
@@ -763,40 +1035,6 @@ class CMCRealTimeMonitor:
             for indicator in sentiment_data['indicators']:
                 cprint(f"   • {indicator}", "white")
     
-    def display_social_sentiment(self, social_data):
-        """Display social media sentiment"""
-        if not social_data:
-            return
-        
-        print("\n" + "="*70)
-        cprint("📱 SOCIAL MEDIA SENTIMENT", "cyan", attrs=["bold"])
-        print("="*70)
-        
-        overall_sentiment = social_data['overall_sentiment']
-        overall_classification = social_data['overall_classification']
-        overall_color = social_data['overall_color']
-        total_mentions = social_data['total_mentions_24h']
-        
-        cprint(f"🌐 Overall Sentiment: {overall_sentiment:.1f}/100", overall_color, attrs=["bold"])
-        cprint(f"📊 Classification: {overall_classification}", overall_color)
-        cprint(f"💬 Total Mentions 24h: {total_mentions:,}", "white")
-        
-        # Display platform-specific data
-        print("\n📱 Platform Breakdown:")
-        for platform, data in social_data['platforms'].items():
-            platform_name = platform.title()
-            sentiment_score = data['sentiment_score']
-            classification = data['classification']
-            color = data['color']
-            mentions = data['mentions_24h']
-            engagement = data['engagement_rate'] * 100
-            
-            cprint(f"   {platform_name}: {sentiment_score:.1f}/100 ({classification})", color)
-            cprint(f"      Mentions: {mentions:,} | Engagement: {engagement:.1f}%", "white")
-            
-            # Display top keywords
-            keywords = ', '.join(data['top_keywords'][:3])
-            cprint(f"      Keywords: {keywords}", "light_blue")
     
     def save_to_csv(self, data_type, data):
         """Save data to CSV files with daily file organization"""
@@ -819,7 +1057,11 @@ class CMCRealTimeMonitor:
             elif data_type == 'watchlist' and isinstance(data, list):
                 filename = f"{self.csv_dir}/watchlist_{date_str}.csv"
                 df = pd.DataFrame(data)
-                
+
+            elif data_type == 'stocks' and isinstance(data, list):
+                filename = f"{self.csv_dir}/stocks_{date_str}.csv"
+                df = pd.DataFrame(data)
+
             elif data_type == 'fear_greed' and isinstance(data, dict):
                 filename = f"{self.csv_dir}/fear_greed_{date_str}.csv"
                 df = pd.DataFrame([data])
@@ -828,9 +1070,6 @@ class CMCRealTimeMonitor:
                 filename = f"{self.csv_dir}/market_sentiment_{date_str}.csv"
                 df = pd.DataFrame([data])
                 
-            elif data_type == 'social_sentiment' and isinstance(data, dict):
-                filename = f"{self.csv_dir}/social_sentiment_{date_str}.csv"
-                df = pd.DataFrame([data])
                 
             else:
                 logger.warning(f"Invalid data type or format for CSV save: {data_type}")
@@ -864,6 +1103,8 @@ class CMCRealTimeMonitor:
         logger.info("Starting CMC Real-Time Monitor...")
         logger.info(f"Refresh interval: {REFRESH_INTERVAL} seconds")
         logger.info(f"Watching: {', '.join(WATCHLIST) if WATCHLIST else 'Top coins only'}")
+        if STOCK_WATCHLIST:
+            logger.info(f"Stocks: {', '.join(STOCK_WATCHLIST)}")
         
         cycle_count = 0
         consecutive_errors = 0
@@ -876,71 +1117,72 @@ class CMCRealTimeMonitor:
                 
                 print(f"\n🔄 Update #{cycle_count} - {current_time}")
                 
-                # Get global metrics
-                global_data = self.get_global_metrics()
-                if global_data:
-                    self.display_global_metrics(global_data)
-                    self.save_to_csv('global', global_data)
-                    consecutive_errors = 0  # Reset error counter on success
-                else:
-                    logger.warning("Failed to get global metrics")
-                    consecutive_errors += 1
-                
-                # Get top cryptocurrencies
-                top_coins = self.get_top_cryptocurrencies()
-                if top_coins:
-                    self.display_top_coins(top_coins)
-                    self.save_to_csv('top_coins', top_coins)
-                else:
-                    logger.warning("Failed to get top cryptocurrencies")
-                    consecutive_errors += 1
-                
-                # Get watchlist data
+                # Get watchlist data and check for arbitrage opportunities
                 if WATCHLIST:
                     watchlist_data = self.get_watchlist_data()
                     if watchlist_data:
+                        # Check for arbitrage opportunities
+                        arbitrage_opps = self.detect_arbitrage_opportunities(watchlist_data)
+                        if arbitrage_opps:
+                            self.display_arbitrage_opportunities(arbitrage_opps)
+
+                        # Display watchlist
                         self.display_watchlist(watchlist_data)
                         self.save_to_csv('watchlist', watchlist_data)
                     else:
                         logger.warning("Failed to get watchlist data")
                         consecutive_errors += 1
-                
+
+                # Get stock data
+                if STOCK_WATCHLIST:
+                    stock_data = self.get_stock_data()
+                    if stock_data:
+                        self.display_stocks(stock_data)
+                        self.save_to_csv('stocks', stock_data)
+                    else:
+                        logger.warning("Failed to get stock data")
+                        consecutive_errors += 1
+
                 # Update sentiment analysis (every SENTIMENT_UPDATE_INTERVAL seconds)
                 current_time_seconds = time.time()
                 time_since_last = current_time_seconds - self.last_sentiment_update
+
+                # Initialize Fear & Greed Index on first run if not already set
+                if ENABLE_FEAR_GREED and self.fear_greed_index is None:
+                    logger.info("🎯 Fetching Fear & Greed Index for first display...")
+                    self.fear_greed_index = self.get_fear_greed_index()
+
+                # Always display Fear & Greed Index if available (cached or fresh)
+                if ENABLE_FEAR_GREED and self.fear_greed_index:
+                    self.display_fear_greed_index(self.fear_greed_index)
 
                 if ENABLE_SENTIMENT_ANALYSIS and time_since_last >= SENTIMENT_UPDATE_INTERVAL:
                     if time_since_last < 600:  # Less than 10 minutes
                         time_display = f"{time_since_last:.0f}s ago"
                     else:
                         time_display = f"{time_since_last/60:.1f}m ago"
-                    logger.info(f"🎯 Updating sentiment analysis (last update: {time_display})")
+                    logger.info(f"🎯 Updating sentiment analysis (last update: {time_display}) - Updates every {SENTIMENT_UPDATE_INTERVAL}s")
                     self.last_sentiment_update = current_time_seconds
-                    
-                    # Get Fear & Greed Index
+
+                    # Update Fear & Greed Index (fetch fresh data)
                     if ENABLE_FEAR_GREED:
                         self.fear_greed_index = self.get_fear_greed_index()
                         if self.fear_greed_index:
-                            self.display_fear_greed_index(self.fear_greed_index)
-                            self.save_to_csv('fear_greed', self.fear_greed_index)
+                            # Only save to CSV when freshly fetched (not cached)
+                            if not self.fear_greed_index.get('cached', False):
+                                self.save_to_csv('fear_greed', self.fear_greed_index)
                     
                     # Analyze market sentiment
-                    if global_data and top_coins:
-                        self.market_sentiment = self.analyze_market_sentiment(global_data, top_coins)
+                    if watchlist_data:
+                        self.market_sentiment = self.analyze_market_sentiment(watchlist_data)
                         if self.market_sentiment:
                             self.display_market_sentiment(self.market_sentiment)
                             self.save_to_csv('market_sentiment', self.market_sentiment)
                     
-                    # Get social sentiment
-                    if ENABLE_SOCIAL_SENTIMENT:
-                        self.social_sentiment = self.get_social_sentiment()
-                        if self.social_sentiment:
-                            self.display_social_sentiment(self.social_sentiment)
-                            self.save_to_csv('social_sentiment', self.social_sentiment)
                 
                 # Check for alerts
-                if top_coins:
-                    current_data_dict = {coin['symbol']: coin for coin in top_coins}
+                if watchlist_data:
+                    current_data_dict = {coin['symbol']: coin for coin in watchlist_data}
                     alerts = self.detect_alerts(current_data_dict, self.previous_data)
                     if alerts:
                         self.display_alerts(alerts)

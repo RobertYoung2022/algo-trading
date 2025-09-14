@@ -606,6 +606,13 @@ class UnifiedOHLCVCollector:
                 data['source_count'] = len(sources_data)
                 data['primary_source'] = best_source
 
+                # Use best market cap data available (prioritize CoinGecko for market cap)
+                if 'market_cap' not in data or data.get('market_cap', 0) == 0:
+                    for cap_source in ['coingecko', 'yahoo', 'alphavantage']:
+                        if cap_source in sources_data and sources_data[cap_source].get('market_cap', 0) > 0:
+                            data['market_cap'] = sources_data[cap_source]['market_cap']
+                            break
+
                 # Add price comparison if multiple sources
                 if len(sources_data) > 1:
                     all_prices = [sources_data[src]['price'] for src in sources_data]
@@ -628,16 +635,16 @@ class UnifiedOHLCVCollector:
             with open(current_prices_file, 'w') as f:
                 json.dump(unified_data, f, indent=2)
 
-            # Create market overview
-            total_market_cap = sum([data.get('market_cap', 0) for data in unified_data.values()])
-            total_volume = sum([data.get('volume_24h', 0) for data in unified_data.values()])
+            # Create market overview (crypto only - exclude stocks)
+            crypto_data = {k: v for k, v in unified_data.items() if k in WATCHLIST}
+            total_volume = sum([data.get('volume_24h', 0) for data in crypto_data.values()])
 
             market_overview = {
                 'total_symbols': len(unified_data),
-                'total_market_cap': total_market_cap,
+                'crypto_symbols': len(crypto_data),
                 'total_volume_24h': total_volume,
-                'positive_changes': len([d for d in unified_data.values() if d.get('change_24h', 0) > 0]),
-                'negative_changes': len([d for d in unified_data.values() if d.get('change_24h', 0) < 0]),
+                'positive_changes': len([d for d in crypto_data.values() if d.get('change_24h', 0) > 0]),
+                'negative_changes': len([d for d in crypto_data.values() if d.get('change_24h', 0) < 0]),
                 'timestamp': datetime.datetime.now().isoformat(),
                 'data_sources_status': self.data_quality
             }
