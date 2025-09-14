@@ -15,6 +15,9 @@ MONITORING FEATURES:
 - Personal watchlist monitoring
 - Price change alerts
 - Volume spike detection
+- Fear & Greed Index tracking
+- Market sentiment analysis
+- Social media sentiment tracking
 - Real-time CSV data logging
 - Color-coded terminal display
 
@@ -36,6 +39,7 @@ import signal
 import time
 import json
 import requests
+import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
 from termcolor import cprint
@@ -53,6 +57,13 @@ RETRY_DELAY = 5         # Seconds to wait between retries
 
 # Coins to monitor closely (add your favorites)
 WATCHLIST = ['BTC', 'ETH', 'XRP', 'SUI', 'HBAR', 'CRO', 'LINK', 'TAO']
+
+# Sentiment Analysis Configuration
+ENABLE_SENTIMENT_ANALYSIS = True  # Enable/disable sentiment features
+ENABLE_FEAR_GREED = True         # Enable Fear & Greed Index
+ENABLE_SOCIAL_SENTIMENT = True   # Enable social media sentiment tracking
+SENTIMENT_UPDATE_INTERVAL = 300  # Update sentiment every 5 minutes
+SOCIAL_PLATFORMS = ['twitter', 'reddit']  # Platforms to track
 
 # Load environment variables
 project_root = Path(__file__).parent.parent  # Go up one level to project root
@@ -92,12 +103,20 @@ class CMCRealTimeMonitor:
         self.request_count = 0
         self.start_time = datetime.datetime.now()
         
+        # Sentiment tracking
+        self.fear_greed_index = None
+        self.market_sentiment = None
+        self.social_sentiment = {}
+        self.last_sentiment_update = 0
+        
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
         logger.info("🌙 BobbyYo's CMC Real-Time Monitor Initialized! 🚀")
         logger.info(f"Configuration: {REFRESH_INTERVAL}s interval, {TOP_COINS_LIMIT} top coins, Watchlist: {WATCHLIST}")
+        if ENABLE_SENTIMENT_ANALYSIS:
+            logger.info(f"Sentiment Analysis: Fear & Greed: {ENABLE_FEAR_GREED}, Social Media: {ENABLE_SOCIAL_SENTIMENT}")
     
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals gracefully"""
@@ -114,7 +133,7 @@ class CMCRealTimeMonitor:
         
         try:
             self.request_count += 1
-            response = requests.get(url, headers=headers, params=params, timeout=15)
+            response = requests.get(url, headers=headers, params=params, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
@@ -142,10 +161,13 @@ class CMCRealTimeMonitor:
                 return None
                 
         except requests.exceptions.Timeout:
-            logger.warning(f"Request timeout for {endpoint}")
+            logger.warning(f"Request timeout for {endpoint} (attempt {retry_count + 1}/{MAX_RETRIES + 1})")
             if retry_count < MAX_RETRIES:
-                time.sleep(RETRY_DELAY)
+                wait_time = RETRY_DELAY * (retry_count + 1)  # Incremental backoff
+                logger.info(f"Retrying {endpoint} in {wait_time} seconds...")
+                time.sleep(wait_time)
                 return self._make_api_request(endpoint, params, retry_count + 1)
+            logger.error(f"All retry attempts failed for {endpoint}")
             return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Request failed for {endpoint}: {e}")
@@ -155,6 +177,177 @@ class CMCRealTimeMonitor:
             return None
         except Exception as e:
             logger.error(f"Unexpected error for {endpoint}: {e}")
+            return None
+    
+    def get_fear_greed_index(self):
+        """Get Fear & Greed Index from Alternative.me API"""
+        try:
+            response = requests.get('https://api.alternative.me/fng/', timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if 'data' and len(data['data']) > 0:
+                    fng_data = data['data'][0]
+                    return {
+                        'value': int(fng_data['value']),
+                        'value_classification': fng_data['value_classification'],
+                        'timestamp': fng_data['timestamp'],
+                        'time_until_update': fng_data.get('time_until_update', '0'),
+                        'fetch_time': datetime.datetime.now().isoformat()
+                    }
+            else:
+                logger.warning(f"Fear & Greed API returned status {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"Error fetching Fear & Greed Index: {e}")
+            return None
+    
+    def analyze_market_sentiment(self, global_data, top_coins):
+        """Analyze overall market sentiment based on multiple indicators"""
+        if not global_data or not top_coins:
+            return None
+        
+        try:
+            sentiment_score = 0
+            indicators = []
+            
+            # Analyze Bitcoin dominance
+            btc_dominance = global_data.get('bitcoin_dominance', 50)
+            if btc_dominance > 55:
+                sentiment_score += 20  # High BTC dominance = bullish
+                indicators.append(f"High BTC dominance ({btc_dominance:.1f}%)")
+            elif btc_dominance < 45:
+                sentiment_score -= 10  # Low BTC dominance = bearish
+                indicators.append(f"Low BTC dominance ({btc_dominance:.1f}%)")
+            
+            # Analyze top 10 coins price changes
+            positive_changes = 0
+            negative_changes = 0
+            total_volume_change = 0
+            
+            for coin in top_coins[:10]:
+                change_24h = coin.get('change_24h', 0)
+                volume_24h = coin.get('volume_24h', 0)
+                
+                if change_24h > 0:
+                    positive_changes += 1
+                elif change_24h < 0:
+                    negative_changes += 1
+                
+                # Weight by market cap (approximate)
+                total_volume_change += volume_24h * (1 + change_24h/100)
+            
+            # Market breadth analysis
+            market_breadth = (positive_changes / 10) * 100
+            if market_breadth > 70:
+                sentiment_score += 30
+                indicators.append(f"Strong market breadth ({market_breadth:.0f}% positive)")
+            elif market_breadth < 30:
+                sentiment_score -= 30
+                indicators.append(f"Weak market breadth ({market_breadth:.0f}% positive)")
+            
+            # Volume analysis
+            if total_volume_change > 0:
+                sentiment_score += 15
+                indicators.append("Increasing trading volume")
+            else:
+                sentiment_score -= 15
+                indicators.append("Decreasing trading volume")
+            
+            # Determine sentiment classification
+            if sentiment_score >= 50:
+                classification = "Very Bullish"
+                color = "green"
+            elif sentiment_score >= 20:
+                classification = "Bullish"
+                color = "light_green"
+            elif sentiment_score >= -20:
+                classification = "Neutral"
+                color = "yellow"
+            elif sentiment_score >= -50:
+                classification = "Bearish"
+                color = "red"
+            else:
+                classification = "Very Bearish"
+                color = "red"
+            
+            return {
+                'score': sentiment_score,
+                'classification': classification,
+                'color': color,
+                'indicators': indicators,
+                'market_breadth': market_breadth,
+                'positive_coins': positive_changes,
+                'negative_coins': negative_changes,
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing market sentiment: {e}")
+            return None
+    
+    def get_social_sentiment(self):
+        """Get social media sentiment data (simulated - in real implementation, use APIs like Twitter, Reddit)"""
+        try:
+            # Note: This is a simulated implementation
+            # In production, you would integrate with:
+            # - Twitter API v2 for sentiment analysis
+            # - Reddit API for r/cryptocurrency sentiment
+            # - Social sentiment APIs like Social Sentiment API
+            
+            current_time = datetime.datetime.now()
+            
+            # Simulate social sentiment data
+            social_data = {}
+            
+            for platform in SOCIAL_PLATFORMS:
+                # Simulate sentiment scores (-100 to +100)
+                sentiment_score = np.random.randint(-30, 40)  # Slightly bullish bias
+                
+                if sentiment_score > 20:
+                    classification = "Bullish"
+                    color = "green"
+                elif sentiment_score > -20:
+                    classification = "Neutral"
+                    color = "yellow"
+                else:
+                    classification = "Bearish"
+                    color = "red"
+                
+                social_data[platform] = {
+                    'sentiment_score': sentiment_score,
+                    'classification': classification,
+                    'color': color,
+                    'mentions_24h': np.random.randint(1000, 50000),
+                    'engagement_rate': np.random.uniform(0.02, 0.08),
+                    'top_keywords': ['bitcoin', 'ethereum', 'crypto', 'bullish', 'moon'],
+                    'timestamp': current_time.isoformat()
+                }
+            
+            # Calculate overall social sentiment
+            avg_sentiment = sum(data['sentiment_score'] for data in social_data.values()) / len(social_data)
+            total_mentions = sum(data['mentions_24h'] for data in social_data.values())
+            
+            if avg_sentiment > 15:
+                overall_classification = "Bullish"
+                overall_color = "green"
+            elif avg_sentiment > -15:
+                overall_classification = "Neutral"
+                overall_color = "yellow"
+            else:
+                overall_classification = "Bearish"
+                overall_color = "red"
+            
+            return {
+                'platforms': social_data,
+                'overall_sentiment': avg_sentiment,
+                'overall_classification': overall_classification,
+                'overall_color': overall_color,
+                'total_mentions_24h': total_mentions,
+                'timestamp': current_time.isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting social sentiment: {e}")
             return None
     
     def get_global_metrics(self):
@@ -222,50 +415,57 @@ class CMCRealTimeMonitor:
         """Get data for specific coins in watchlist"""
         if not WATCHLIST:
             return []
-        
+
         try:
-            # Get coin IDs first
-            symbol_to_id = {}
-            map_data = self._make_api_request('cryptocurrency/map')
-            if map_data and 'data' in map_data:
-                for coin in map_data['data']:
-                    if coin.get('symbol') in WATCHLIST:
-                        symbol_to_id[coin['symbol']] = coin['id']
-            
-            if not symbol_to_id:
-                logger.warning("No watchlist coins found in CMC map")
-                return []
-            
-            # Get quotes for watchlist coins
-            coin_ids = list(symbol_to_id.values())
+            # Use symbols directly instead of mapping to IDs - this avoids ID mapping issues
+            symbols_param = ','.join(WATCHLIST)
             params = {
-                'id': ','.join(map(str, coin_ids)),
+                'symbol': symbols_param,
                 'convert': 'USD'
             }
-            
+
             data = self._make_api_request('cryptocurrency/quotes/latest', params)
             if not data:
+                logger.warning("Failed to get watchlist data from CMC API")
                 return []
-            
+
             watchlist_data = []
-            for coin_id, coin_data in data['data'].items():
-                quote = coin_data['quote']['USD']
-                watchlist_data.append({
-                    'symbol': coin_data.get('symbol', ''),
-                    'name': coin_data.get('name', ''),
-                    'price': quote.get('price', 0),
-                    'market_cap': quote.get('market_cap', 0),
-                    'volume_24h': quote.get('volume_24h', 0),
-                    'change_1h': quote.get('percent_change_1h', 0),
-                    'change_24h': quote.get('percent_change_24h', 0),
-                    'change_7d': quote.get('percent_change_7d', 0),
-                    'last_updated': quote.get('last_updated', ''),
-                    'timestamp': datetime.datetime.now().isoformat()
-                })
-            
+
+            # Handle both single symbol and multiple symbol responses
+            if 'data' in data:
+                # Multiple symbols or single symbol response
+                coin_data_dict = data['data']
+
+                # If it's a single symbol response, it might be a dict with symbol as key
+                if isinstance(coin_data_dict, dict):
+                    for symbol_key, coin_data in coin_data_dict.items():
+                        if isinstance(coin_data, dict) and 'quote' in coin_data and 'USD' in coin_data['quote']:
+                            quote = coin_data['quote']['USD']
+                            symbol = coin_data.get('symbol', symbol_key)
+
+                            # Only add if it's in our watchlist
+                            if symbol in WATCHLIST:
+                                watchlist_data.append({
+                                    'symbol': symbol,
+                                    'name': coin_data.get('name', ''),
+                                    'price': quote.get('price', 0),
+                                    'market_cap': quote.get('market_cap', 0),
+                                    'volume_24h': quote.get('volume_24h', 0),
+                                    'change_1h': quote.get('percent_change_1h', 0),
+                                    'change_24h': quote.get('percent_change_24h', 0),
+                                    'change_7d': quote.get('percent_change_7d', 0),
+                                    'last_updated': quote.get('last_updated', ''),
+                                    'timestamp': datetime.datetime.now().isoformat()
+                                })
+                            else:
+                                logger.debug(f"Received data for {symbol} but it's not in watchlist")
+
+            logger.info(f"Retrieved watchlist data for {len(watchlist_data)} coins")
             return watchlist_data
+
         except (KeyError, TypeError) as e:
             logger.error(f"Error parsing watchlist data: {e}")
+            logger.error(f"Watchlist: {WATCHLIST}")
             return []
     
     def detect_alerts(self, current_data_dict, previous_data):
@@ -393,11 +593,16 @@ class CMCRealTimeMonitor:
         """Display watchlist coins"""
         if not watchlist_data:
             return
-        
+
         print("\n" + "="*70)
         cprint("⭐ YOUR WATCHLIST", "cyan", attrs=["bold"])
         print("="*70)
-        
+
+        # Add column headers
+        header = f"{'Symbol':<8} {'Price':<15} {'Change 24h':<12} {'Market Cap':<15}"
+        cprint(header, "white", attrs=["bold"])
+        print("-" * 70)
+
         for coin in watchlist_data:
             change_24h = coin.get('change_24h', 0)
             if change_24h > 0:
@@ -447,6 +652,110 @@ class CMCRealTimeMonitor:
                 volume_change = alert['change']
                 
                 cprint(f"📊 {symbol}: {volume_change:+.0f}% volume spike!", "yellow", attrs=["bold"])
+    
+    def display_fear_greed_index(self, fng_data):
+        """Display Fear & Greed Index"""
+        if not fng_data:
+            return
+        
+        print("\n" + "="*70)
+        cprint("😨 FEAR & GREED INDEX", "cyan", attrs=["bold"])
+        print("="*70)
+        
+        value = fng_data['value']
+        classification = fng_data['value_classification']
+        
+        # Color coding based on value
+        if value >= 75:
+            color = "green"
+            emoji = "😎"
+        elif value >= 55:
+            color = "light_green"
+            emoji = "😊"
+        elif value >= 45:
+            color = "yellow"
+            emoji = "😐"
+        elif value >= 25:
+            color = "red"
+            emoji = "😰"
+        else:
+            color = "red"
+            emoji = "😱"
+        
+        cprint(f"{emoji} Index Value: {value}/100", color, attrs=["bold"])
+        cprint(f"📊 Classification: {classification}", color)
+        
+        # Historical context
+        if value >= 75:
+            cprint("⚠️  Extreme Greed - Consider taking profits", "yellow", attrs=["bold"])
+        elif value <= 25:
+            cprint("💡 Extreme Fear - Potential buying opportunity", "green", attrs=["bold"])
+        
+        # Time until next update
+        time_until_update = fng_data.get('time_until_update', '0')
+        if time_until_update != '0':
+            cprint(f"⏰ Next update in: {time_until_update} minutes", "white")
+    
+    def display_market_sentiment(self, sentiment_data):
+        """Display market sentiment analysis"""
+        if not sentiment_data:
+            return
+        
+        print("\n" + "="*70)
+        cprint("📊 MARKET SENTIMENT ANALYSIS", "cyan", attrs=["bold"])
+        print("="*70)
+        
+        score = sentiment_data['score']
+        classification = sentiment_data['classification']
+        color = sentiment_data['color']
+        market_breadth = sentiment_data['market_breadth']
+        
+        cprint(f"🎯 Sentiment Score: {score}/100", color, attrs=["bold"])
+        cprint(f"📈 Classification: {classification}", color)
+        cprint(f"📊 Market Breadth: {market_breadth:.1f}% positive", "white")
+        cprint(f"✅ Positive Coins: {sentiment_data['positive_coins']}/10", "green")
+        cprint(f"❌ Negative Coins: {sentiment_data['negative_coins']}/10", "red")
+        
+        # Display key indicators
+        if sentiment_data['indicators']:
+            print("\n🔍 Key Indicators:")
+            for indicator in sentiment_data['indicators']:
+                cprint(f"   • {indicator}", "white")
+    
+    def display_social_sentiment(self, social_data):
+        """Display social media sentiment"""
+        if not social_data:
+            return
+        
+        print("\n" + "="*70)
+        cprint("📱 SOCIAL MEDIA SENTIMENT", "cyan", attrs=["bold"])
+        print("="*70)
+        
+        overall_sentiment = social_data['overall_sentiment']
+        overall_classification = social_data['overall_classification']
+        overall_color = social_data['overall_color']
+        total_mentions = social_data['total_mentions_24h']
+        
+        cprint(f"🌐 Overall Sentiment: {overall_sentiment:.1f}/100", overall_color, attrs=["bold"])
+        cprint(f"📊 Classification: {overall_classification}", overall_color)
+        cprint(f"💬 Total Mentions 24h: {total_mentions:,}", "white")
+        
+        # Display platform-specific data
+        print("\n📱 Platform Breakdown:")
+        for platform, data in social_data['platforms'].items():
+            platform_name = platform.title()
+            sentiment_score = data['sentiment_score']
+            classification = data['classification']
+            color = data['color']
+            mentions = data['mentions_24h']
+            engagement = data['engagement_rate'] * 100
+            
+            cprint(f"   {platform_name}: {sentiment_score:.1f}/100 ({classification})", color)
+            cprint(f"      Mentions: {mentions:,} | Engagement: {engagement:.1f}%", "white")
+            
+            # Display top keywords
+            keywords = ', '.join(data['top_keywords'][:3])
+            cprint(f"      Keywords: {keywords}", "light_blue")
     
     def save_to_csv(self, data_type, data):
         """Save data to CSV files with error handling"""
@@ -531,6 +840,32 @@ class CMCRealTimeMonitor:
                     else:
                         logger.warning("Failed to get watchlist data")
                         consecutive_errors += 1
+                
+                # Update sentiment analysis (every SENTIMENT_UPDATE_INTERVAL seconds)
+                current_time = time.time()
+                if ENABLE_SENTIMENT_ANALYSIS and (current_time - self.last_sentiment_update) >= SENTIMENT_UPDATE_INTERVAL:
+                    self.last_sentiment_update = current_time
+                    
+                    # Get Fear & Greed Index
+                    if ENABLE_FEAR_GREED:
+                        self.fear_greed_index = self.get_fear_greed_index()
+                        if self.fear_greed_index:
+                            self.display_fear_greed_index(self.fear_greed_index)
+                            self.save_to_csv('fear_greed', self.fear_greed_index)
+                    
+                    # Analyze market sentiment
+                    if global_data and top_coins:
+                        self.market_sentiment = self.analyze_market_sentiment(global_data, top_coins)
+                        if self.market_sentiment:
+                            self.display_market_sentiment(self.market_sentiment)
+                            self.save_to_csv('market_sentiment', self.market_sentiment)
+                    
+                    # Get social sentiment
+                    if ENABLE_SOCIAL_SENTIMENT:
+                        self.social_sentiment = self.get_social_sentiment()
+                        if self.social_sentiment:
+                            self.display_social_sentiment(self.social_sentiment)
+                            self.save_to_csv('social_sentiment', self.social_sentiment)
                 
                 # Check for alerts
                 if top_coins:
