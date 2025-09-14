@@ -72,9 +72,20 @@ This repository contains **8 specialized monitoring scripts** that collect real-
 - **Setup Required:** CMC API key in `.env` file
 - **Run:** `python cmc_real_time_monitor.py`
 
+#### 7. CMC Data Analyzer (`analyze_cmc_data.py`)
+**Purpose:** Analyze collected CMC data for performance insights
+- **Features:** Watchlist performance analysis, market overview, Fear & Greed Index tracking
+- **Output:** Terminal analysis and optional charts
+- **Run:** `python analyze_cmc_data.py`
+
+#### 8. CMC Data Utils (`cmc_data_utils.py`)
+**Purpose:** Utility functions for loading and processing CMC data
+- **Features:** Data loading, performance analysis, Excel export capabilities
+- **Usage:** Import functions for custom analysis scripts
+
 ### **Trading Bot Scripts**
 
-#### 7. Algo Orders Bot (`algo_orders.py`)
+#### 9. Algo Orders Bot (`algo_orders.py`)
 **Purpose:** Automated trading bot for Phemex exchange
 - **Features:** Scheduled limit orders, automatic cancellation, position management
 - **Setup Required:** Phemex API credentials in `.env` file
@@ -90,6 +101,8 @@ This repository contains **8 specialized monitoring scripts** that collect real-
 | `big_liqs.py` | Binance WebSocket | $100K+ | Major liquidations | `big_liqs.csv`, `big_liqs.log` | ❌ |
 | `funding.py` | Binance WebSocket | N/A | Funding rates | Terminal only | ❌ |
 | `cmc_real_time_monitor.py` | CoinMarketCap API | Configurable | Market overview | Multiple CSV files | ✅ CMC API |
+| `analyze_cmc_data.py` | CMC CSV files | N/A | Data analysis | Terminal output | ❌ |
+| `cmc_data_utils.py` | CMC CSV files | N/A | Data utilities | Various outputs | ❌ |
 | `algo_orders.py` | Phemex API | N/A | Automated trading | None | ✅ Phemex API |
 
 ## 🛠️ Installation & Setup
@@ -126,6 +139,11 @@ This repository contains **8 specialized monitoring scripts** that collect real-
 4. **Run CMC monitor:**
    ```bash
    python cmc_real_time_monitor.py
+   ```
+
+5. **Analyze CMC data:**
+   ```bash
+   python analyze_cmc_data.py
    ```
 
 ### **Phemex Trading Bot Setup**
@@ -172,6 +190,7 @@ python big_liqs.py            # Major liquidations $100K+
 ```bash
 python funding.py              # Funding rates
 python cmc_real_time_monitor.py  # Market overview (requires API key)
+python analyze_cmc_data.py     # Analyze collected CMC data
 ```
 
 #### **Run Trading Bot**
@@ -377,6 +396,10 @@ Contributions are welcome! Areas for enhancement:
 - Performance optimizations
 - Documentation improvements
 - Test coverage expansion
+
+## 📚 Additional Documentation
+
+- **CMC Daily Files Guide**: See `CMC_DAILY_FILES_GUIDE.md` for detailed information about the daily file organization system used by the CMC monitor.
 
 ## 📄 License
 

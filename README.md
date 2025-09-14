@@ -46,6 +46,8 @@ A comprehensive algorithmic trading system with data collection, strategy develo
 - `data-streams/big_liqs.py` - Binance big liquidation monitor
 - `data-streams/huge_trades.py` - Binance huge trades monitor
 - `data-streams/cmc_real_time_monitor.py` - CoinMarketCap real-time monitor
+- `data-streams/analyze_cmc_data.py` - CMC data analysis tool
+- `data-streams/cmc_data_utils.py` - CMC data utilities
 
 ### 🔧 **Utility Files**
 - `my_nice_function.py` - Comprehensive utility functions
@@ -56,7 +58,9 @@ A comprehensive algorithmic trading system with data collection, strategy develo
 - `DATA_COLLECTION_REFERENCE_GUIDE.md` - Complete data collection guide
 - `DATA_SCRIPTS_QUICK_REFERENCE.md` - Quick reference for data scripts
 - `COINBASE_SETUP.md` - Coinbase setup instructions
+- `MULTI_DATA_TESTING.md` - Multi-data testing framework guide
 - `backtest-architect.md` - Backtesting architecture documentation
+- `data-streams/CMC_DAILY_FILES_GUIDE.md` - CMC daily data files guide
 
 ## 🚀 **Getting Started**
 
@@ -84,6 +88,9 @@ python data-scripts/cryptocompare_historical_data.py
 # Start real-time monitoring
 python data-streams/liqs.py
 python data-streams/cmc_real_time_monitor.py
+
+# Analyze CMC data
+python data-streams/analyze_cmc_data.py
 ```
 
 ### 4. Strategy Development

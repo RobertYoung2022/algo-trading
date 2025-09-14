@@ -18,7 +18,7 @@ MONITORING FEATURES:
 - Fear & Greed Index tracking
 - Market sentiment analysis
 - Social media sentiment tracking
-- Real-time CSV data logging
+- Real-time CSV data logging (daily files)
 - Color-coded terminal display
 
 PRODUCTION FEATURES:
@@ -758,31 +758,54 @@ class CMCRealTimeMonitor:
             cprint(f"      Keywords: {keywords}", "light_blue")
     
     def save_to_csv(self, data_type, data):
-        """Save data to CSV files with error handling"""
+        """Save data to CSV files with daily file organization"""
         if not SAVE_TO_CSV or not data:
             return
         
         try:
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            # Use daily files instead of timestamped files
+            date_str = datetime.datetime.now().strftime('%Y%m%d')
+            current_timestamp = datetime.datetime.now().isoformat()
             
             if data_type == 'global' and isinstance(data, dict):
-                filename = f"{self.csv_dir}/global_metrics_{timestamp}.csv"
+                filename = f"{self.csv_dir}/global_metrics_{date_str}.csv"
                 df = pd.DataFrame([data])
-            
+                
             elif data_type == 'top_coins' and isinstance(data, list):
-                filename = f"{self.csv_dir}/top_coins_{timestamp}.csv"
+                filename = f"{self.csv_dir}/top_coins_{date_str}.csv"
                 df = pd.DataFrame(data)
-            
+                
             elif data_type == 'watchlist' and isinstance(data, list):
-                filename = f"{self.csv_dir}/watchlist_{timestamp}.csv"
+                filename = f"{self.csv_dir}/watchlist_{date_str}.csv"
                 df = pd.DataFrame(data)
-            
+                
+            elif data_type == 'fear_greed' and isinstance(data, dict):
+                filename = f"{self.csv_dir}/fear_greed_{date_str}.csv"
+                df = pd.DataFrame([data])
+                
+            elif data_type == 'market_sentiment' and isinstance(data, dict):
+                filename = f"{self.csv_dir}/market_sentiment_{date_str}.csv"
+                df = pd.DataFrame([data])
+                
+            elif data_type == 'social_sentiment' and isinstance(data, dict):
+                filename = f"{self.csv_dir}/social_sentiment_{date_str}.csv"
+                df = pd.DataFrame([data])
+                
             else:
                 logger.warning(f"Invalid data type or format for CSV save: {data_type}")
                 return
             
-            df.to_csv(filename, index=False)
-            logger.debug(f"💾 Data saved to {filename}")
+            # Check if file exists to determine if we should append or create new
+            file_exists = os.path.exists(filename)
+            
+            if file_exists:
+                # Append to existing file
+                df.to_csv(filename, mode='a', header=False, index=False)
+                logger.debug(f"📝 Data appended to {filename}")
+            else:
+                # Create new file with header
+                df.to_csv(filename, index=False)
+                logger.debug(f"💾 New daily file created: {filename}")
             
         except Exception as e:
             logger.error(f"Error saving CSV: {e}")
