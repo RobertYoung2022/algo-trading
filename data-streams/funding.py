@@ -7,14 +7,13 @@ from termcolor import cprint
 # list of symbols to track
 symbols = [
     "BTCUSDT",
-    "ETHUSDT", 
-    "SOLUSDT",
+    "ETHUSDT",
     "XRPUSDT",
-    "LINKUSDT",
     "SUIUSDT",
     "HBARUSDT",
-    "AAVEUSDT",
-    "OPUSDT",
+    "CROUSDT",
+    "LINKUSDT",
+    "TAOUSDT",
 ]
 
 websocket_url_base = "wss://fstream.binance.com/ws/"

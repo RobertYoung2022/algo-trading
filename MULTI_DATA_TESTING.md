@@ -8,6 +8,7 @@ The `multi_data_tester-py` file allows any strategy to be tested on 20+ differen
 ### Step 1: Create Your Strategy File
 Create your strategy as normal, inheriting from `Strategy` and implementing `init()` and `next`
 methods.
+
 ### Step 2: Add Multi-Data Testing Code
 At the very bottom of your strategy file, add this exact code block:
 
@@ -20,7 +21,7 @@ print（"="*80）
 
 import sys 
 import os
-sys-path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from multi_data_tester import test_on_all_data
 
 # Test this strategy on all configured data sources
@@ -66,7 +67,7 @@ print(f"📊 Loading data from: {DATA_PATH}")
 data = pd.read_csv(DATA_PATH, parse_dates=['datetime'], index_col='datetime')
 data.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
 data = data.sort_index()
-data = data.
+data = data.dropna()
 
 # Multi-Data Testing Guide
 ## Complete Example - New Strategy Template
@@ -90,7 +91,7 @@ class YourStrategy(Strategy):
                 current_price = self.data.Close[-1]
                 sl_price = current_price * (1 - self.stop_loss)
                 tp_price = current_price * (1 + self.take_profit)
-                self.buy(sl=sl_price, tp=tp_price)
+                self.buy(sl = sl_price, tp = tp_price)
 
 # Run single backtest (default behavior)
 bt = Backtest(data, YourStrategy, cash=1000000 commission=0.00045)
@@ -119,10 +120,10 @@ print("\n🏆 ===== OPTIMIZATION RESULTS =====  🧨")
 print(optimization_results)
 
 print("\n🏆 BEST PARAMETERS:")
-print(f"Param1: {optimization_results.strategy.param1}")
-print(f"Param2: {optimization_results.strategy.param2}")
-print(f"Take Profit: {optimization_results.strategy.take_profit * 100:.1f}%")
-print(f"Stop Loss: {optimization_results.strategy.stop_loss * 100:.1f}%")
+print(f"Param1: {optimization_results._strategy.param1}")
+print(f"Param2: {optimization_results._strategy.param2}")
+print(f"Take Profit: {optimization_results._strategy.take_profit * 100:.1f}%")
+print(f"Stop Loss: {optimization_results._strategy.stop_loss * 100:.1f}%")
 
 # TEST ON ALL DATA SOURCES
 if __name__ == "__main__":
@@ -171,9 +172,9 @@ DATA_SOURCES = [
 Each CSV contains these columns:
 - **Data_Source**: Name of the data source
 - **Rows**: Number of data rows
-- **Return_®**: Total return percentage
+- **Return_%**: Total return percentage
 - **Buy_Hold_%**: Buy and hold return for comparison
-- **Annual Return &**: Annualized return
+- **Annual_Return_%**: Annualized return
 - **Sharpe**: Sharpe ratio
 - **Sortino**: Sortino ratio (higher is better)
 - **Calmar**: Calmar ratio
@@ -181,7 +182,7 @@ Each CSV contains these columns:
 - **Avg_DD_%**: Average drawdown
 - **Trades**: Number of trades
 - **Win_Rate_%**: Win rate percentage
-- **Best_Trade_®**: Best single trade
+- **Best_Trade_%**: Best single trade
 - **Worst_Trade_%**: Worst single trade
 - **Avg_Trade_%**: Average trade return
 - **Profit_Factor**: Profit factor
@@ -193,7 +194,7 @@ Each CSV contains these columns:
 To test multiple strategies and compare them:
 
 ```python
-from multi_data_tester import test_multipl_strategies
+from multi_data_tester import test_multiple_strategies
 
 strategies = {
     'Strategy1_Name': Strategy1Class,
@@ -212,7 +213,7 @@ This creates:
 
 1. **Cash Amount**: Default is $10,000,000 to handle Bitcoin prices. Adjust if needed:
 ```python
-results = test_on_all_data(YourStrategy, 'Name', cash=100000)
+results = test_on_all_data(YourStrategy, 'Name', cash=10000000)
 ```
 
 2. **Commission**: Default is 0.045% (0.00045). Adjust if needed:
@@ -232,7 +233,7 @@ results = test_on_all_data(YourStrategy, 'Name', commission=0.001)
 cd /Users/folder/where/your/data/csv
 
 # Run your strategy (tests on all data automatically)
-python3 your_strategy. py
+python3 your_strategy.py
 
 # Check results
 ls results/
