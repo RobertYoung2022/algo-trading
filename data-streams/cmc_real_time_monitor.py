@@ -1,13 +1,16 @@
 '''
-CoinMarketCap Real-Time Monitor
-==============================
-Production-ready real-time cryptocurrency monitoring system using CoinMarketCap API
+CoinMarketCap Real-Time Monitor (Consumer Mode)
+==============================================
+Real-time cryptocurrency monitoring system that reads data from the Unified OHLCV Collector
+
+ARCHITECTURE:
+- PRODUCER: unified_ohlcv_collector.py (collects data from multiple APIs)
+- CONSUMER: cmc_real_time_monitor.py (displays data from local JSON files)
 
 STEPS TO USE:
-1. Get API key from https://coinmarketcap.com/api/
-2. Create a .env file with: CMC_API_KEY="your_coinmarketcap_api_key_here"
-3. Configure monitoring options below
-4. Run the script: python cmc_real_time_monitor.py
+1. Start the unified collector: python data-scripts/unified_ohlcv_collector.py
+2. Start this monitor: python cmc_real_time_monitor.py
+3. Monitor will read live data from data/live_market/ JSON files
 
 MONITORING FEATURES:
 - Global cryptocurrency market metrics
@@ -17,15 +20,15 @@ MONITORING FEATURES:
 - Volume spike detection
 - Fear & Greed Index tracking
 - Market sentiment analysis
-- Social media sentiment tracking
 - Real-time CSV data logging (daily files)
 - Color-coded terminal display
+- Multi-source arbitrage detection
 
 PRODUCTION FEATURES:
+- No external API dependencies (reads local files)
+- Faster response times (no API latency)
 - Comprehensive error handling
-- Rate limiting compliance
 - Graceful shutdown handling
-- Automatic reconnection
 - Data validation
 - Production logging
 '''
@@ -62,7 +65,7 @@ WATCHLIST = ['BTC', 'ETH', 'XRP', 'SUI', 'HBAR', 'CRO', 'LINK', 'TAO']
 ENABLE_SENTIMENT_ANALYSIS = True  # Enable/disable sentiment features
 ENABLE_FEAR_GREED = True         # Enable Fear & Greed Index
 ENABLE_SOCIAL_SENTIMENT = True   # Enable social media sentiment tracking
-SENTIMENT_UPDATE_INTERVAL = 300  # Update sentiment every 5 minutes
+SENTIMENT_UPDATE_INTERVAL = 120  # Update sentiment every 2 minutes
 SOCIAL_PLATFORMS = ['twitter', 'reddit']  # Platforms to track
 
 # Load environment variables
@@ -107,7 +110,7 @@ class CMCRealTimeMonitor:
         self.fear_greed_index = None
         self.market_sentiment = None
         self.social_sentiment = {}
-        self.last_sentiment_update = 0
+        self.last_sentiment_update = time.time()  # Initialize to current time
         
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -351,120 +354,138 @@ class CMCRealTimeMonitor:
             return None
     
     def get_global_metrics(self):
-        """Get global cryptocurrency market metrics"""
-        data = self._make_api_request('global-metrics/quotes/latest')
-        if not data:
-            return None
-        
+        """Get global cryptocurrency market metrics from unified collector data"""
         try:
-            global_data = data['data']
-            quote = global_data['quote']['USD']
-            
+            # Read from unified collector's market overview file (use absolute path)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            market_overview_file = os.path.join(project_root, 'data', 'live_market', 'market_overview.json')
+
+            if not os.path.exists(market_overview_file):
+                logger.warning("Market overview file not found. Make sure unified_ohlcv_collector.py is running.")
+                return None
+
+            with open(market_overview_file, 'r') as f:
+                market_data = json.load(f)
+
+            # Read current prices to calculate Bitcoin/Ethereum dominance
+            current_prices_file = os.path.join(project_root, 'data', 'live_market', 'current_prices.json')
+            btc_dominance = 0
+            eth_dominance = 0
+
+            if os.path.exists(current_prices_file):
+                with open(current_prices_file, 'r') as f:
+                    prices_data = json.load(f)
+
+                total_market_cap = market_data.get('total_market_cap', 1)
+
+                if 'BTC' in prices_data and total_market_cap > 0:
+                    btc_market_cap = prices_data['BTC'].get('market_cap', 0)
+                    btc_dominance = (btc_market_cap / total_market_cap) * 100
+
+                if 'ETH' in prices_data and total_market_cap > 0:
+                    eth_market_cap = prices_data['ETH'].get('market_cap', 0)
+                    eth_dominance = (eth_market_cap / total_market_cap) * 100
+
             return {
-                'total_market_cap': quote.get('total_market_cap', 0),
-                'total_volume_24h': quote.get('total_volume_24h', 0),
-                'bitcoin_dominance': global_data.get('btc_dominance', 0),
-                'ethereum_dominance': global_data.get('eth_dominance', 0),
-                'active_cryptocurrencies': global_data.get('active_cryptocurrencies', 0),
-                'active_exchanges': global_data.get('active_exchanges', 0),
-                'last_updated': global_data.get('last_updated', ''),
+                'total_market_cap': market_data.get('total_market_cap', 0),
+                'total_volume_24h': market_data.get('total_volume_24h', 0),
+                'bitcoin_dominance': btc_dominance,
+                'ethereum_dominance': eth_dominance,
+                'active_cryptocurrencies': market_data.get('total_symbols', 0),
+                'active_exchanges': 0,  # Not available from unified collector
+                'last_updated': market_data.get('timestamp', ''),
                 'timestamp': datetime.datetime.now().isoformat()
             }
-        except (KeyError, TypeError) as e:
-            logger.error(f"Error parsing global metrics: {e}")
+
+        except Exception as e:
+            logger.error(f"Error reading global metrics from local data: {e}")
             return None
     
     def get_top_cryptocurrencies(self, limit=TOP_COINS_LIMIT):
-        """Get top cryptocurrencies by market cap"""
-        params = {
-            'start': 1,
-            'limit': limit,
-            'convert': 'USD',
-            'sort': 'market_cap',
-            'sort_dir': 'desc'
-        }
-        
-        data = self._make_api_request('cryptocurrency/listings/latest', params)
-        if not data:
-            return []
-        
+        """Get top cryptocurrencies by market cap from unified collector data"""
         try:
+            # Read from unified collector's current prices file (use absolute path)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            current_prices_file = os.path.join(project_root, 'data', 'live_market', 'current_prices.json')
+
+            if not os.path.exists(current_prices_file):
+                logger.warning("Current prices file not found. Make sure unified_ohlcv_collector.py is running.")
+                return []
+
+            with open(current_prices_file, 'r') as f:
+                prices_data = json.load(f)
+
+            # Convert to list format and sort by market cap
             coins = []
-            for coin in data['data']:
-                quote = coin['quote']['USD']
+            for symbol, data in prices_data.items():
                 coins.append({
-                    'rank': coin.get('cmc_rank', 0),
-                    'symbol': coin.get('symbol', ''),
-                    'name': coin.get('name', ''),
-                    'price': quote.get('price', 0),
-                    'market_cap': quote.get('market_cap', 0),
-                    'volume_24h': quote.get('volume_24h', 0),
-                    'change_1h': quote.get('percent_change_1h', 0),
-                    'change_24h': quote.get('percent_change_24h', 0),
-                    'change_7d': quote.get('percent_change_7d', 0),
-                    'last_updated': quote.get('last_updated', ''),
+                    'rank': 0,  # Will be set after sorting
+                    'symbol': symbol,
+                    'name': symbol,  # Use symbol as name for now
+                    'price': data.get('price', 0),
+                    'market_cap': data.get('market_cap', 0),
+                    'volume_24h': data.get('volume_24h', 0),
+                    'change_1h': 0,  # Not available from unified collector
+                    'change_24h': data.get('change_24h', 0),
+                    'change_7d': 0,  # Not available from unified collector
+                    'last_updated': data.get('timestamp', ''),
                     'timestamp': datetime.datetime.now().isoformat()
                 })
-            
-            return coins
-        except (KeyError, TypeError) as e:
-            logger.error(f"Error parsing top cryptocurrencies: {e}")
+
+            # Sort by market cap (descending) and assign ranks
+            coins.sort(key=lambda x: x['market_cap'], reverse=True)
+            for i, coin in enumerate(coins[:limit], 1):
+                coin['rank'] = i
+
+            return coins[:limit]
+
+        except Exception as e:
+            logger.error(f"Error reading top cryptocurrencies from local data: {e}")
             return []
     
     def get_watchlist_data(self):
-        """Get data for specific coins in watchlist"""
+        """Get data for specific coins in watchlist from unified collector data"""
         if not WATCHLIST:
             return []
 
         try:
-            # Use symbols directly instead of mapping to IDs - this avoids ID mapping issues
-            symbols_param = ','.join(WATCHLIST)
-            params = {
-                'symbol': symbols_param,
-                'convert': 'USD'
-            }
+            # Read from unified collector's current prices file (use absolute path)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            current_prices_file = os.path.join(project_root, 'data', 'live_market', 'current_prices.json')
 
-            data = self._make_api_request('cryptocurrency/quotes/latest', params)
-            if not data:
-                logger.warning("Failed to get watchlist data from CMC API")
+            if not os.path.exists(current_prices_file):
+                logger.warning("Current prices file not found. Make sure unified_ohlcv_collector.py is running.")
                 return []
+
+            with open(current_prices_file, 'r') as f:
+                prices_data = json.load(f)
 
             watchlist_data = []
 
-            # Handle both single symbol and multiple symbol responses
-            if 'data' in data:
-                # Multiple symbols or single symbol response
-                coin_data_dict = data['data']
+            # Extract data for watchlist symbols
+            for symbol in WATCHLIST:
+                if symbol in prices_data:
+                    data = prices_data[symbol]
+                    watchlist_data.append({
+                        'symbol': symbol,
+                        'name': symbol,  # Use symbol as name for now
+                        'price': data.get('price', 0),
+                        'market_cap': data.get('market_cap', 0),
+                        'volume_24h': data.get('volume_24h', 0),
+                        'change_1h': 0,  # Not available from unified collector
+                        'change_24h': data.get('change_24h', 0),
+                        'change_7d': 0,  # Not available from unified collector
+                        'last_updated': data.get('timestamp', ''),
+                        'timestamp': datetime.datetime.now().isoformat()
+                    })
+                else:
+                    logger.debug(f"Symbol {symbol} not found in unified collector data")
 
-                # If it's a single symbol response, it might be a dict with symbol as key
-                if isinstance(coin_data_dict, dict):
-                    for symbol_key, coin_data in coin_data_dict.items():
-                        if isinstance(coin_data, dict) and 'quote' in coin_data and 'USD' in coin_data['quote']:
-                            quote = coin_data['quote']['USD']
-                            symbol = coin_data.get('symbol', symbol_key)
-
-                            # Only add if it's in our watchlist
-                            if symbol in WATCHLIST:
-                                watchlist_data.append({
-                                    'symbol': symbol,
-                                    'name': coin_data.get('name', ''),
-                                    'price': quote.get('price', 0),
-                                    'market_cap': quote.get('market_cap', 0),
-                                    'volume_24h': quote.get('volume_24h', 0),
-                                    'change_1h': quote.get('percent_change_1h', 0),
-                                    'change_24h': quote.get('percent_change_24h', 0),
-                                    'change_7d': quote.get('percent_change_7d', 0),
-                                    'last_updated': quote.get('last_updated', ''),
-                                    'timestamp': datetime.datetime.now().isoformat()
-                                })
-                            else:
-                                logger.debug(f"Received data for {symbol} but it's not in watchlist")
-
-            logger.info(f"Retrieved watchlist data for {len(watchlist_data)} coins")
+            logger.debug(f"Retrieved watchlist data for {len(watchlist_data)} coins from local data")
             return watchlist_data
 
-        except (KeyError, TypeError) as e:
-            logger.error(f"Error parsing watchlist data: {e}")
+        except Exception as e:
+            logger.error(f"Error reading watchlist data from local data: {e}")
             logger.error(f"Watchlist: {WATCHLIST}")
             return []
     
@@ -662,7 +683,7 @@ class CMCRealTimeMonitor:
         cprint("😨 FEAR & GREED INDEX", "cyan", attrs=["bold"])
         print("="*70)
         
-        value = fng_data['value']
+        value = int(fng_data['value'])
         classification = fng_data['value_classification']
         
         # Color coding based on value
@@ -691,10 +712,30 @@ class CMCRealTimeMonitor:
         elif value <= 25:
             cprint("💡 Extreme Fear - Potential buying opportunity", "green", attrs=["bold"])
         
-        # Time until next update
+        # Time until next update (API returns seconds)
         time_until_update = fng_data.get('time_until_update', '0')
         if time_until_update != '0':
-            cprint(f"⏰ Next update in: {time_until_update} minutes", "white")
+            try:
+                # API returns time in seconds, convert to reasonable display format
+                seconds = int(time_until_update)
+
+                # Convert seconds to hours and minutes
+                hours = seconds // 3600
+                remaining_seconds = seconds % 3600
+                minutes = remaining_seconds // 60
+
+                # Validation: Fear & Greed Index updates daily, never more than 25 hours
+                if hours > 25:
+                    cprint("⏰ Next update: Invalid time from API (using daily schedule)", "yellow")
+                elif hours > 0:
+                    if minutes > 0:
+                        cprint(f"⏰ Next update in: {hours}h {minutes}m", "white")
+                    else:
+                        cprint(f"⏰ Next update in: {hours}h", "white")
+                else:
+                    cprint(f"⏰ Next update in: {minutes}m", "white")
+            except (ValueError, TypeError):
+                pass  # Skip invalid time values
     
     def display_market_sentiment(self, sentiment_data):
         """Display market sentiment analysis"""
@@ -865,9 +906,16 @@ class CMCRealTimeMonitor:
                         consecutive_errors += 1
                 
                 # Update sentiment analysis (every SENTIMENT_UPDATE_INTERVAL seconds)
-                current_time = time.time()
-                if ENABLE_SENTIMENT_ANALYSIS and (current_time - self.last_sentiment_update) >= SENTIMENT_UPDATE_INTERVAL:
-                    self.last_sentiment_update = current_time
+                current_time_seconds = time.time()
+                time_since_last = current_time_seconds - self.last_sentiment_update
+
+                if ENABLE_SENTIMENT_ANALYSIS and time_since_last >= SENTIMENT_UPDATE_INTERVAL:
+                    if time_since_last < 600:  # Less than 10 minutes
+                        time_display = f"{time_since_last:.0f}s ago"
+                    else:
+                        time_display = f"{time_since_last/60:.1f}m ago"
+                    logger.info(f"🎯 Updating sentiment analysis (last update: {time_display})")
+                    self.last_sentiment_update = current_time_seconds
                     
                     # Get Fear & Greed Index
                     if ENABLE_FEAR_GREED:
