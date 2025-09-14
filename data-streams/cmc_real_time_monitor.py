@@ -271,21 +271,36 @@ class CMCRealTimeMonitor:
     def detect_alerts(self, current_data_dict, previous_data):
         """Detect price and volume alerts"""
         alerts = []
-        
+
         if not previous_data or not current_data_dict:
             return alerts
-        
+
         try:
             # Check for significant price changes
             for symbol, coin in current_data_dict.items():
+                # Ensure coin is a dictionary
+                if not isinstance(coin, dict):
+                    logger.warning(f"Coin data for {symbol} is not a dictionary: {type(coin)}")
+                    continue
+
                 if symbol in previous_data:
                     prev_coin = previous_data[symbol]
-                    
+
+                    # Ensure prev_coin is also a dictionary
+                    if not isinstance(prev_coin, dict):
+                        logger.warning(f"Previous coin data for {symbol} is not a dictionary: {type(prev_coin)}")
+                        continue
+
                     # Price change alert
                     current_change = coin.get('change_24h', 0)
                     prev_change = prev_coin.get('change_24h', 0)
+
+                    # Ensure values are numeric
+                    if not isinstance(current_change, (int, float)) or not isinstance(prev_change, (int, float)):
+                        continue
+
                     price_change = current_change - prev_change
-                    
+
                     if abs(price_change) >= MIN_PRICE_CHANGE:
                         alerts.append({
                             'type': 'price_change',
@@ -294,12 +309,13 @@ class CMCRealTimeMonitor:
                             'current_price': coin.get('price', 0),
                             'current_change_24h': current_change
                         })
-                    
+
                     # Volume spike alert
                     current_volume = coin.get('volume_24h', 0)
                     prev_volume = prev_coin.get('volume_24h', 0)
-                    
-                    if prev_volume > 0:
+
+                    # Ensure volumes are numeric
+                    if isinstance(current_volume, (int, float)) and isinstance(prev_volume, (int, float)) and prev_volume > 0:
                         volume_change = ((current_volume - prev_volume) / prev_volume) * 100
                         if abs(volume_change) >= MIN_VOLUME_CHANGE:
                             alerts.append({
@@ -308,10 +324,12 @@ class CMCRealTimeMonitor:
                                 'change': volume_change,
                                 'current_volume': current_volume
                             })
-            
+
             return alerts
         except Exception as e:
             logger.error(f"Error detecting alerts: {e}")
+            logger.error(f"Current data types: {type(current_data_dict)}")
+            logger.error(f"Previous data types: {type(previous_data)}")
             return []
     
     def display_global_metrics(self, global_data):
