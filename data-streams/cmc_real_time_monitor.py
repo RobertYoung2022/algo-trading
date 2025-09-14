@@ -62,7 +62,7 @@ WATCHLIST = ['BTC', 'ETH', 'XRP', 'SUI', 'HBAR', 'CRO', 'LINK', 'TAO']
 ENABLE_SENTIMENT_ANALYSIS = True  # Enable/disable sentiment features
 ENABLE_FEAR_GREED = True         # Enable Fear & Greed Index
 ENABLE_SOCIAL_SENTIMENT = True   # Enable social media sentiment tracking
-SENTIMENT_UPDATE_INTERVAL = 300  # Update sentiment every 5 minutes
+SENTIMENT_UPDATE_INTERVAL = 120  # Update sentiment every 2 minutes
 SOCIAL_PLATFORMS = ['twitter', 'reddit']  # Platforms to track
 
 # Load environment variables
@@ -107,7 +107,7 @@ class CMCRealTimeMonitor:
         self.fear_greed_index = None
         self.market_sentiment = None
         self.social_sentiment = {}
-        self.last_sentiment_update = 0
+        self.last_sentiment_update = time.time()  # Initialize to current time
         
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -460,7 +460,7 @@ class CMCRealTimeMonitor:
                             else:
                                 logger.debug(f"Received data for {symbol} but it's not in watchlist")
 
-            logger.info(f"Retrieved watchlist data for {len(watchlist_data)} coins")
+            logger.debug(f"Retrieved watchlist data for {len(watchlist_data)} coins")
             return watchlist_data
 
         except (KeyError, TypeError) as e:
@@ -691,10 +691,23 @@ class CMCRealTimeMonitor:
         elif value <= 25:
             cprint("💡 Extreme Fear - Potential buying opportunity", "green", attrs=["bold"])
         
-        # Time until next update
+        # Time until next update (convert from hours to minutes if needed)
         time_until_update = fng_data.get('time_until_update', '0')
         if time_until_update != '0':
-            cprint(f"⏰ Next update in: {time_until_update} minutes", "white")
+            try:
+                # The API sometimes returns hours, convert to reasonable display
+                time_value = int(time_until_update)
+                if time_value > 1440:  # More than 24 hours (1440 minutes)
+                    hours = time_value // 60
+                    if hours > 24:
+                        days = hours // 24
+                        cprint(f"⏰ Next update in: ~{days} days", "white")
+                    else:
+                        cprint(f"⏰ Next update in: ~{hours} hours", "white")
+                else:
+                    cprint(f"⏰ Next update in: {time_value} minutes", "white")
+            except (ValueError, TypeError):
+                pass  # Skip invalid time values
     
     def display_market_sentiment(self, sentiment_data):
         """Display market sentiment analysis"""
@@ -865,9 +878,16 @@ class CMCRealTimeMonitor:
                         consecutive_errors += 1
                 
                 # Update sentiment analysis (every SENTIMENT_UPDATE_INTERVAL seconds)
-                current_time = time.time()
-                if ENABLE_SENTIMENT_ANALYSIS and (current_time - self.last_sentiment_update) >= SENTIMENT_UPDATE_INTERVAL:
-                    self.last_sentiment_update = current_time
+                current_time_seconds = time.time()
+                time_since_last = current_time_seconds - self.last_sentiment_update
+
+                if ENABLE_SENTIMENT_ANALYSIS and time_since_last >= SENTIMENT_UPDATE_INTERVAL:
+                    if time_since_last < 600:  # Less than 10 minutes
+                        time_display = f"{time_since_last:.0f}s ago"
+                    else:
+                        time_display = f"{time_since_last/60:.1f}m ago"
+                    logger.info(f"🎯 Updating sentiment analysis (last update: {time_display})")
+                    self.last_sentiment_update = current_time_seconds
                     
                     # Get Fear & Greed Index
                     if ENABLE_FEAR_GREED:
