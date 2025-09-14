@@ -1,0 +1,562 @@
+'''
+CoinMarketCap Real-Time Monitor
+==============================
+Production-ready real-time cryptocurrency monitoring system using CoinMarketCap API
+
+STEPS TO USE:
+1. Get API key from https://coinmarketcap.com/api/
+2. Create a .env file with: CMC_API_KEY="your_coinmarketcap_api_key_here"
+3. Configure monitoring options below
+4. Run the script: python cmc_real_time_monitor.py
+
+MONITORING FEATURES:
+- Global cryptocurrency market metrics
+- Top cryptocurrencies by market cap
+- Personal watchlist monitoring
+- Price change alerts
+- Volume spike detection
+- Real-time CSV data logging
+- Color-coded terminal display
+
+PRODUCTION FEATURES:
+- Comprehensive error handling
+- Rate limiting compliance
+- Graceful shutdown handling
+- Automatic reconnection
+- Data validation
+- Production logging
+'''
+
+# ====== BobbyYo's CMC Real-Time Monitor Configuration 🌙 ======
+import pandas as pd
+import datetime
+import os
+import sys
+import signal
+import time
+import json
+import requests
+from pathlib import Path
+from dotenv import load_dotenv
+from termcolor import cprint
+import logging
+
+# Configuration
+REFRESH_INTERVAL = 30  # Seconds between updates
+TOP_COINS_LIMIT = 20   # Number of top coins to display
+MIN_VOLUME_CHANGE = 50  # Minimum % volume change to alert
+MIN_PRICE_CHANGE = 5    # Minimum % price change to alert
+SAVE_TO_CSV = True      # Save data to CSV files
+CSV_DIR = '../data/cmc_monitor'  # Relative to data-streams directory
+MAX_RETRIES = 3         # Maximum retry attempts for API calls
+RETRY_DELAY = 5         # Seconds to wait between retries
+
+# Coins to monitor closely (add your favorites)
+WATCHLIST = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOT', 'MATIC', 'AVAX', 'LINK', 'UNI']
+
+# Load environment variables
+project_root = Path(__file__).parent.parent  # Go up one level to project root
+env_path = project_root / '.env'
+load_dotenv(env_path)
+
+api_key = os.getenv('CMC_API_KEY')
+if not api_key:
+    print("❌ Error: CMC API key not found in .env file")
+    print("💡 Make sure your .env file exists and contains:")
+    print("   CMC_API_KEY=your_coinmarketcap_api_key_here")
+    print("   Get your free API key at: https://coinmarketcap.com/api/")
+    sys.exit(1)
+
+# Create CSV directory
+os.makedirs(CSV_DIR, exist_ok=True)
+
+# Setup production logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(f'{CSV_DIR}/cmc_monitor.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+class CMCRealTimeMonitor:
+    """Production-ready CoinMarketCap real-time monitor"""
+    
+    def __init__(self):
+        self.running = True
+        self.previous_data = {}
+        self.csv_dir = CSV_DIR
+        self.api_key = api_key
+        self.request_count = 0
+        self.start_time = datetime.datetime.now()
+        
+        # Setup signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        
+        logger.info("🌙 BobbyYo's CMC Real-Time Monitor Initialized! 🚀")
+        logger.info(f"Configuration: {REFRESH_INTERVAL}s interval, {TOP_COINS_LIMIT} top coins, Watchlist: {WATCHLIST}")
+    
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals gracefully"""
+        logger.info(f"Received signal {signum}, shutting down gracefully...")
+        self.running = False
+    
+    def _make_api_request(self, endpoint, params=None, retry_count=0):
+        """Make API request to CoinMarketCap with retry logic"""
+        url = f'https://pro-api.coinmarketcap.com/v1/{endpoint}'
+        headers = {
+            'Accepts': 'application/json',
+            'X-CMC_PRO_API_KEY': self.api_key,
+        }
+        
+        try:
+            self.request_count += 1
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'data' in data:
+                    return data
+                else:
+                    logger.warning(f"API response missing 'data' field: {data}")
+                    return None
+            elif response.status_code == 429:
+                logger.warning("Rate limit exceeded, waiting before retry...")
+                time.sleep(60)  # Wait 1 minute for rate limit reset
+                if retry_count < MAX_RETRIES:
+                    return self._make_api_request(endpoint, params, retry_count + 1)
+                else:
+                    logger.error("Max retries reached for rate limit")
+                    return None
+            elif response.status_code == 401:
+                logger.error("API key invalid or expired")
+                return None
+            else:
+                logger.error(f"API Error {response.status_code}: {response.text}")
+                if retry_count < MAX_RETRIES and response.status_code >= 500:
+                    time.sleep(RETRY_DELAY)
+                    return self._make_api_request(endpoint, params, retry_count + 1)
+                return None
+                
+        except requests.exceptions.Timeout:
+            logger.warning(f"Request timeout for {endpoint}")
+            if retry_count < MAX_RETRIES:
+                time.sleep(RETRY_DELAY)
+                return self._make_api_request(endpoint, params, retry_count + 1)
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed for {endpoint}: {e}")
+            if retry_count < MAX_RETRIES:
+                time.sleep(RETRY_DELAY)
+                return self._make_api_request(endpoint, params, retry_count + 1)
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error for {endpoint}: {e}")
+            return None
+    
+    def get_global_metrics(self):
+        """Get global cryptocurrency market metrics"""
+        data = self._make_api_request('global-metrics/quotes/latest')
+        if not data:
+            return None
+        
+        try:
+            global_data = data['data']
+            quote = global_data['quote']['USD']
+            
+            return {
+                'total_market_cap': quote.get('total_market_cap', 0),
+                'total_volume_24h': quote.get('total_volume_24h', 0),
+                'bitcoin_dominance': global_data.get('btc_dominance', 0),
+                'ethereum_dominance': global_data.get('eth_dominance', 0),
+                'active_cryptocurrencies': global_data.get('active_cryptocurrencies', 0),
+                'active_exchanges': global_data.get('active_exchanges', 0),
+                'last_updated': global_data.get('last_updated', ''),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+        except (KeyError, TypeError) as e:
+            logger.error(f"Error parsing global metrics: {e}")
+            return None
+    
+    def get_top_cryptocurrencies(self, limit=TOP_COINS_LIMIT):
+        """Get top cryptocurrencies by market cap"""
+        params = {
+            'start': 1,
+            'limit': limit,
+            'convert': 'USD',
+            'sort': 'market_cap',
+            'sort_dir': 'desc'
+        }
+        
+        data = self._make_api_request('cryptocurrency/listings/latest', params)
+        if not data:
+            return []
+        
+        try:
+            coins = []
+            for coin in data['data']:
+                quote = coin['quote']['USD']
+                coins.append({
+                    'rank': coin.get('cmc_rank', 0),
+                    'symbol': coin.get('symbol', ''),
+                    'name': coin.get('name', ''),
+                    'price': quote.get('price', 0),
+                    'market_cap': quote.get('market_cap', 0),
+                    'volume_24h': quote.get('volume_24h', 0),
+                    'change_1h': quote.get('percent_change_1h', 0),
+                    'change_24h': quote.get('percent_change_24h', 0),
+                    'change_7d': quote.get('percent_change_7d', 0),
+                    'last_updated': quote.get('last_updated', ''),
+                    'timestamp': datetime.datetime.now().isoformat()
+                })
+            
+            return coins
+        except (KeyError, TypeError) as e:
+            logger.error(f"Error parsing top cryptocurrencies: {e}")
+            return []
+    
+    def get_watchlist_data(self):
+        """Get data for specific coins in watchlist"""
+        if not WATCHLIST:
+            return []
+        
+        try:
+            # Get coin IDs first
+            symbol_to_id = {}
+            map_data = self._make_api_request('cryptocurrency/map')
+            if map_data and 'data' in map_data:
+                for coin in map_data['data']:
+                    if coin.get('symbol') in WATCHLIST:
+                        symbol_to_id[coin['symbol']] = coin['id']
+            
+            if not symbol_to_id:
+                logger.warning("No watchlist coins found in CMC map")
+                return []
+            
+            # Get quotes for watchlist coins
+            coin_ids = list(symbol_to_id.values())
+            params = {
+                'id': ','.join(map(str, coin_ids)),
+                'convert': 'USD'
+            }
+            
+            data = self._make_api_request('cryptocurrency/quotes/latest', params)
+            if not data:
+                return []
+            
+            watchlist_data = []
+            for coin_id, coin_data in data['data'].items():
+                quote = coin_data['quote']['USD']
+                watchlist_data.append({
+                    'symbol': coin_data.get('symbol', ''),
+                    'name': coin_data.get('name', ''),
+                    'price': quote.get('price', 0),
+                    'market_cap': quote.get('market_cap', 0),
+                    'volume_24h': quote.get('volume_24h', 0),
+                    'change_1h': quote.get('percent_change_1h', 0),
+                    'change_24h': quote.get('percent_change_24h', 0),
+                    'change_7d': quote.get('percent_change_7d', 0),
+                    'last_updated': quote.get('last_updated', ''),
+                    'timestamp': datetime.datetime.now().isoformat()
+                })
+            
+            return watchlist_data
+        except (KeyError, TypeError) as e:
+            logger.error(f"Error parsing watchlist data: {e}")
+            return []
+    
+    def detect_alerts(self, current_data_dict, previous_data):
+        """Detect price and volume alerts"""
+        alerts = []
+        
+        if not previous_data or not current_data_dict:
+            return alerts
+        
+        try:
+            # Check for significant price changes
+            for symbol, coin in current_data_dict.items():
+                if symbol in previous_data:
+                    prev_coin = previous_data[symbol]
+                    
+                    # Price change alert
+                    current_change = coin.get('change_24h', 0)
+                    prev_change = prev_coin.get('change_24h', 0)
+                    price_change = current_change - prev_change
+                    
+                    if abs(price_change) >= MIN_PRICE_CHANGE:
+                        alerts.append({
+                            'type': 'price_change',
+                            'symbol': symbol,
+                            'change': price_change,
+                            'current_price': coin.get('price', 0),
+                            'current_change_24h': current_change
+                        })
+                    
+                    # Volume spike alert
+                    current_volume = coin.get('volume_24h', 0)
+                    prev_volume = prev_coin.get('volume_24h', 0)
+                    
+                    if prev_volume > 0:
+                        volume_change = ((current_volume - prev_volume) / prev_volume) * 100
+                        if abs(volume_change) >= MIN_VOLUME_CHANGE:
+                            alerts.append({
+                                'type': 'volume_spike',
+                                'symbol': symbol,
+                                'change': volume_change,
+                                'current_volume': current_volume
+                            })
+            
+            return alerts
+        except Exception as e:
+            logger.error(f"Error detecting alerts: {e}")
+            return []
+    
+    def display_global_metrics(self, global_data):
+        """Display global market metrics"""
+        if not global_data:
+            return
+        
+        print("\n" + "="*70)
+        cprint("🌍 GLOBAL CRYPTO MARKET METRICS", "cyan", attrs=["bold"])
+        print("="*70)
+        
+        total_mcap = global_data['total_market_cap'] / 1e12 if global_data['total_market_cap'] else 0
+        total_volume = global_data['total_volume_24h'] / 1e9 if global_data['total_volume_24h'] else 0
+        
+        cprint(f"📊 Total Market Cap: ${total_mcap:.2f}T", "green")
+        cprint(f"📈 24h Volume: ${total_volume:.2f}B", "blue")
+        cprint(f"₿ Bitcoin Dominance: {global_data['bitcoin_dominance']:.1f}%", "yellow")
+        cprint(f"⟠ Ethereum Dominance: {global_data['ethereum_dominance']:.1f}%", "magenta")
+        cprint(f"🪙 Active Cryptocurrencies: {global_data['active_cryptocurrencies']:,}", "white")
+        cprint(f"🏪 Active Exchanges: {global_data['active_exchanges']:,}", "white")
+    
+    def display_top_coins(self, coins):
+        """Display top cryptocurrencies"""
+        if not coins:
+            return
+        
+        print("\n" + "="*90)
+        cprint("📈 TOP CRYPTOCURRENCIES BY MARKET CAP", "cyan", attrs=["bold"])
+        print("="*90)
+        
+        header = f"{'Rank':<4} {'Symbol':<8} {'Price':<15} {'Change 24h':<12} {'Market Cap':<18} {'Volume 24h':<15}"
+        cprint(header, "white", attrs=["bold"])
+        print("-" * 90)
+        
+        for coin in coins[:TOP_COINS_LIMIT]:
+            # Color code based on 24h change
+            change_24h = coin.get('change_24h', 0)
+            if change_24h > 0:
+                change_color = "green"
+                change_symbol = "📈"
+            elif change_24h < 0:
+                change_color = "red"
+                change_symbol = "📉"
+            else:
+                change_color = "white"
+                change_symbol = "➡️"
+            
+            price = coin.get('price', 0)
+            if price >= 1:
+                price_str = f"${price:,.2f}"
+            else:
+                price_str = f"${price:.6f}"
+            
+            market_cap = coin.get('market_cap', 0) / 1e9 if coin.get('market_cap') else 0
+            volume = coin.get('volume_24h', 0) / 1e6 if coin.get('volume_24h') else 0
+            
+            line = f"{coin.get('rank', 0):<4} {coin.get('symbol', ''):<8} {price_str:<15} {change_symbol} {change_24h:+.1f}%{'':<5} ${market_cap:.1f}B{'':<8} ${volume:.1f}M"
+            cprint(line, change_color)
+    
+    def display_watchlist(self, watchlist_data):
+        """Display watchlist coins"""
+        if not watchlist_data:
+            return
+        
+        print("\n" + "="*70)
+        cprint("⭐ YOUR WATCHLIST", "cyan", attrs=["bold"])
+        print("="*70)
+        
+        for coin in watchlist_data:
+            change_24h = coin.get('change_24h', 0)
+            if change_24h > 0:
+                change_color = "green"
+            elif change_24h < 0:
+                change_color = "red"
+            else:
+                change_color = "white"
+            
+            price = coin.get('price', 0)
+            if price >= 1:
+                price_str = f"${price:,.2f}"
+            else:
+                price_str = f"${price:.6f}"
+            
+            market_cap = coin.get('market_cap', 0) / 1e9 if coin.get('market_cap') else 0
+            
+            line = f"{coin.get('symbol', ''):<8} {price_str:<15} {change_24h:+.1f}%{'':<8} ${market_cap:.1f}B"
+            cprint(line, change_color)
+    
+    def display_alerts(self, alerts):
+        """Display price and volume alerts"""
+        if not alerts:
+            return
+        
+        print("\n" + "="*70)
+        cprint("🚨 ALERTS & SIGNIFICANT MOVEMENTS", "red", attrs=["bold"])
+        print("="*70)
+        
+        for alert in alerts:
+            if alert['type'] == 'price_change':
+                symbol = alert['symbol']
+                change = alert['change']
+                current_change = alert['current_change_24h']
+                
+                if change > 0:
+                    alert_color = "green"
+                    emoji = "🚀"
+                else:
+                    alert_color = "red"
+                    emoji = "💥"
+                
+                cprint(f"{emoji} {symbol}: {change:+.1f}% change in 24h trend (now {current_change:+.1f}%)", alert_color, attrs=["bold"])
+            
+            elif alert['type'] == 'volume_spike':
+                symbol = alert['symbol']
+                volume_change = alert['change']
+                
+                cprint(f"📊 {symbol}: {volume_change:+.0f}% volume spike!", "yellow", attrs=["bold"])
+    
+    def save_to_csv(self, data_type, data):
+        """Save data to CSV files with error handling"""
+        if not SAVE_TO_CSV or not data:
+            return
+        
+        try:
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            if data_type == 'global' and isinstance(data, dict):
+                filename = f"{self.csv_dir}/global_metrics_{timestamp}.csv"
+                df = pd.DataFrame([data])
+            
+            elif data_type == 'top_coins' and isinstance(data, list):
+                filename = f"{self.csv_dir}/top_coins_{timestamp}.csv"
+                df = pd.DataFrame(data)
+            
+            elif data_type == 'watchlist' and isinstance(data, list):
+                filename = f"{self.csv_dir}/watchlist_{timestamp}.csv"
+                df = pd.DataFrame(data)
+            
+            else:
+                logger.warning(f"Invalid data type or format for CSV save: {data_type}")
+                return
+            
+            df.to_csv(filename, index=False)
+            logger.debug(f"💾 Data saved to {filename}")
+            
+        except Exception as e:
+            logger.error(f"Error saving CSV: {e}")
+    
+    def print_stats(self):
+        """Print monitoring statistics"""
+        uptime = datetime.datetime.now() - self.start_time
+        hours, remainder = divmod(uptime.total_seconds(), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        print(f"\n📊 Monitor Stats: {int(hours)}h {int(minutes)}m {int(seconds)}s uptime, {self.request_count} API calls")
+    
+    def run_monitor(self):
+        """Main monitoring loop with production error handling"""
+        logger.info("Starting CMC Real-Time Monitor...")
+        logger.info(f"Refresh interval: {REFRESH_INTERVAL} seconds")
+        logger.info(f"Watching: {', '.join(WATCHLIST) if WATCHLIST else 'Top coins only'}")
+        
+        cycle_count = 0
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+        
+        while self.running:
+            try:
+                cycle_count += 1
+                current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                print(f"\n🔄 Update #{cycle_count} - {current_time}")
+                
+                # Get global metrics
+                global_data = self.get_global_metrics()
+                if global_data:
+                    self.display_global_metrics(global_data)
+                    self.save_to_csv('global', global_data)
+                    consecutive_errors = 0  # Reset error counter on success
+                else:
+                    logger.warning("Failed to get global metrics")
+                    consecutive_errors += 1
+                
+                # Get top cryptocurrencies
+                top_coins = self.get_top_cryptocurrencies()
+                if top_coins:
+                    self.display_top_coins(top_coins)
+                    self.save_to_csv('top_coins', top_coins)
+                else:
+                    logger.warning("Failed to get top cryptocurrencies")
+                    consecutive_errors += 1
+                
+                # Get watchlist data
+                if WATCHLIST:
+                    watchlist_data = self.get_watchlist_data()
+                    if watchlist_data:
+                        self.display_watchlist(watchlist_data)
+                        self.save_to_csv('watchlist', watchlist_data)
+                    else:
+                        logger.warning("Failed to get watchlist data")
+                        consecutive_errors += 1
+                
+                # Check for alerts
+                if top_coins:
+                    current_data_dict = {coin['symbol']: coin for coin in top_coins}
+                    alerts = self.detect_alerts(current_data_dict, self.previous_data)
+                    if alerts:
+                        self.display_alerts(alerts)
+                    
+                    self.previous_data = current_data_dict
+                
+                # Print stats every 10 cycles
+                if cycle_count % 10 == 0:
+                    self.print_stats()
+                
+                # Check for too many consecutive errors
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error(f"Too many consecutive errors ({consecutive_errors}), stopping monitor")
+                    break
+                
+                # Wait for next update
+                if self.running:
+                    time.sleep(REFRESH_INTERVAL)
+                
+            except KeyboardInterrupt:
+                logger.info("Shutdown requested by user")
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error in monitoring loop: {e}")
+                consecutive_errors += 1
+                time.sleep(5)  # Wait before retrying
+        
+        logger.info("CMC Real-Time Monitor stopped")
+        self.print_stats()
+
+def main():
+    """Main entry point with production error handling"""
+    try:
+        monitor = CMCRealTimeMonitor()
+        monitor.run_monitor()
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        sys.exit(1)
+    finally:
+        logger.info("Monitor shutdown complete")
+
+if __name__ == "__main__":
+    main()

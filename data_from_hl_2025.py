@@ -13,9 +13,20 @@ import numpy as np
 import time
 
 # ====== BobbyYo's Hyperliquid Configuration 🌙 ======
-SYMBOL = 'ETH'               # Symbol to fetch (e.g., 'BTC', 'ETH', 'SOL')
-TIMEFRAME = '1h'             # Timeframe: '1m', '1h', '1d', '1w'
-SAVE_DIR = 'data/hyperliquid'  # Directory to save the data files
+# 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
+
+SYMBOL = 'ETH'               # Symbol to fetch - CHANGE THIS:
+                           # Available: 'BTC', 'ETH', 'SOL', 'ARB', 'AVAX', 'ATOM', 'DOT', 'MATIC', 'LINK', 'UNI'
+                           # More: 'XRP', 'ADA', 'LTC', 'BCH', 'ALGO', 'NEAR', 'FTM', 'SAND', 'MANA', 'AAVE'
+                           # Note: Hyperliquid supports specific trading pairs only
+
+TIMEFRAME = '1h'             # Timeframe - CHANGE THIS:
+                           # Available: '1m', '1h', '1d', '1w'
+                           # Note: '1m' = 1 minute, '1h' = 1 hour, '1d' = 1 day, '1w' = 1 week
+
+SAVE_DIR = 'data/hyperliquid'  # Directory to save files - CHANGE IF NEEDED:
+                              # Examples: 'data/hyperliquid', 'data/hl_data', 'backup_data'
+                              # ⚠️ IMPORTANT: Hyperliquid MAX is 5000 bars only!
 
 # Define symbol and timeframe (for backward compatibility)
 symbol = SYMBOL
@@ -136,6 +147,11 @@ def process_data_to_df(snapshot_data):
     else:
         return pd.DataFrame()
 
+def respect_rate_limits():
+    """Add rate limiting for Hyperliquid API requests"""
+    print("⏱️ Respecting Hyperliquid rate limits...")
+    time.sleep(1)  # 1 second delay between requests
+
 def fetch_historical_data(symbol, timeframe):
     """Fetch 5000 rows of historical data."""
     print("\n🌙 BobbyYo's Historical Data Fetcher")
@@ -167,6 +183,8 @@ def fetch_historical_data(symbol, timeframe):
     return df
 
 # Use the function
+print(f"\n🚀 Fetching {symbol} data with {timeframe} timeframe...")
+respect_rate_limits()
 all_data = fetch_historical_data(symbol, timeframe)
 
 # Create save directory if it doesn't exist

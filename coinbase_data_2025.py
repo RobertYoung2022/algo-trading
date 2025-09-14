@@ -1,20 +1,35 @@
 '''
 STEPS TO USE
-1. create a .env file that looks like this
-    COINBASE_API_KEY="organizations/{org_id}/apiKeys/{key_id}"
-    COINBASE_API_SECRET="-----BEGIN EC PRIVATE KEY-----\nYOUR PRIVATE KEY\n-----END EC PRIVATE KEY-----\n"
+1. create a .env file that looks like this:
+    COINBASE_API_KEY="your_api_key_id"
+    COINBASE_API_SECRET="your_api_secret"
+    COINBASE_PASSPHRASE="your_passphrase" (optional - only if your API type requires it)
 2. select the symbol you want to fetch data for
 3. select the timeframe you want to fetch data for
 4. select the number of weeks of data to fetch
 5. run the script
+
+Note: You need a Coinbase Exchange API key (not Coinbase Pro or Advanced Trade)
 '''
 
 
 # ====== BobbyYo's Configuration 🌙 ======
-SYMBOL = 'BTC-USD'        # Trading pair (e.g., 'BTC-USD', 'ETH-USD', 'SOL-USD')
-TIMEFRAME = '5m'          # Timeframe (e.g., '1m', '5m', '1h', '6h', '1d')
-WEEKS = 70            # How many weeks of data to fetch
-SAVE_DIR = 'data/coinbase'  # Directory to save the data files
+# 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
+
+SYMBOL = 'BTC-USD'        # Trading pair - CHANGE THIS:
+                         # Popular pairs: 'BTC-USD', 'ETH-USD', 'SOL-USD', 'ADA-USD', 'DOT-USD', 'MATIC-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD'
+                         # More pairs: 'XRP-USD', 'LTC-USD', 'BCH-USD', 'ALGO-USD', 'ATOM-USD', 'NEAR-USD', 'FTM-USD', 'SAND-USD', 'MANA-USD'
+
+TIMEFRAME = '5m'          # Timeframe - CHANGE THIS:
+                         # Available: '1m', '5m', '15m', '1h', '6h', '1d'
+                         # Note: '1m' gives more data but takes longer to fetch
+
+WEEKS = 70                # How many weeks of data to fetch - CHANGE THIS:
+                         # Examples: 10 (2.5 months), 26 (6 months), 52 (1 year), 104 (2 years), 208 (4 years)
+                         # Warning: Large values may hit API limits or take very long
+
+SAVE_DIR = 'data/coinbase'  # Directory to save files - CHANGE IF NEEDED:
+                           # Examples: 'data/coinbase', 'data/historical', 'backup_data'
 
 # ====== Imports ======
 import pandas as pd
@@ -54,8 +69,9 @@ print("🔒 API Secret loaded:", "✅" if api_secret else "❌")
 if not api_key or not api_secret:
     print("❌ Error: API credentials not found in .env file")
     print("💡 Make sure your .env file exists and contains:")
-    print("   COINBASE_API_KEY=organizations/{org_id}/apiKeys/{key_id}")
-    print("   COINBASE_API_SECRET=your-secret-key")
+    print("   COINBASE_API_KEY=your_api_key_id")
+    print("   COINBASE_API_SECRET=your_api_secret")
+    print("   COINBASE_PASSPHRASE=your_passphrase (optional - only if required by your API type)")
     raise ValueError("Missing API credentials")
 
 print("🌙 BobbyYo's Coinbase Data Fetcher Initialized! 🚀")
@@ -64,10 +80,6 @@ def sign_request(method, path, body='', timestamp=None):
     """Sign a request using the API secret"""
     timestamp = timestamp or str(int(time.time()))
     
-    # Remove the '/api/v3/brokerage' prefix from path for signing
-    if path.startswith('/api/v3/brokerage'):
-        path = path[len('/api/v3/brokerage'):]
-    
     # Create the message to sign
     message = f"{timestamp}{method}{path}{body}"
     
@@ -75,13 +87,26 @@ def sign_request(method, path, body='', timestamp=None):
         # Print debug info without exposing secrets
         print(f"🔏 Signing request for: {method} {path}")
         
-        # Create JWT token
+        # Create the signature using HMAC SHA256
+        signature = hmac.new(
+            api_secret.encode('utf-8'),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Create headers for Coinbase Exchange API
         headers = {
             'CB-ACCESS-KEY': api_key,
+            'CB-ACCESS-SIGN': signature,
             'CB-ACCESS-TIMESTAMP': timestamp,
             'accept': 'application/json',
             'content-type': 'application/json',
         }
+        
+        # Add passphrase only if it exists (some API types don't require it)
+        passphrase = os.getenv('COINBASE_PASSPHRASE')
+        if passphrase:
+            headers['CB-ACCESS-PASSPHRASE'] = passphrase
         
         return headers
         

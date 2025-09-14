@@ -15,11 +15,30 @@ Standard ($499/month): 2 years historical
 '''
 
 # ====== BobbyYo's CoinMarketCap Configuration 🌙 ======
-SYMBOL = 'ETH'               # Symbol to fetch (e.g., 'BTC', 'ETH', 'SOL')
-VS_CURRENCY = 'USD'          # Currency to price against (e.g., 'USD', 'EUR', 'BTC')
-COUNT = 30                   # Number of data points to fetch (limited by API plan)
-INTERVAL = 'daily'           # Interval: '1h', '2h', '3h', '4h', '6h', '8h', '12h', 'daily', 'weekly', 'monthly'
-SAVE_DIR = 'data/coinmarketcap'  # Directory to save the data files
+# 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
+
+SYMBOL = 'ETH'               # Symbol to fetch - CHANGE THIS:
+                           # Popular symbols: 'BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'MATIC', 'AVAX', 'LINK', 'UNI', 'XRP'
+                           # More symbols: 'LTC', 'BCH', 'ALGO', 'ATOM', 'NEAR', 'FTM', 'SAND', 'MANA', 'AAVE', 'CRV'
+                           # Find more at: https://coinmarketcap.com/api/documentation/v1/#operation/getV1CryptocurrencyMap
+
+VS_CURRENCY = 'USD'          # Currency to price against - CHANGE THIS:
+                           # Fiat: 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'HKD', 'SGD'
+                           # Crypto: 'BTC', 'ETH', 'BNB', 'ADA', 'SOL', 'DOT', 'MATIC', 'AVAX'
+                           # Note: Free tier has limited currency options
+
+COUNT = 30                   # Number of data points to fetch - CHANGE THIS:
+                           # Range: Limited by your API plan
+                           # Free tier: Only latest quotes (1 point)
+                           # Paid plans: 30-730 days depending on subscription
+                           # Examples: 7, 30, 90, 365
+
+INTERVAL = 'daily'           # Interval - CHANGE THIS:
+                           # Available: '1h', '2h', '3h', '4h', '6h', '8h', '12h', 'daily', 'weekly', 'monthly'
+                           # Note: Free tier only supports 'daily'
+
+SAVE_DIR = 'data/coinmarketcap'  # Directory to save files - CHANGE IF NEEDED:
+                               # Examples: 'data/coinmarketcap', 'data/cmc_data', 'backup_data'
 
 # ====== Imports ======
 import pandas as pd
@@ -268,9 +287,9 @@ def get_latest_quotes_fallback(coin_id, vs_currency):
 
 # Rate limiting compliance
 def respect_rate_limits():
-    """CoinMarketCap allows 333 calls per day for free tier"""
+    """CoinMarketCap allows 10 calls per minute for free tier"""
     print("⏱️ Respecting CoinMarketCap rate limits...")
-    time.sleep(1)  # 1 second delay between requests
+    time.sleep(7)  # 7 second delay between requests (8.5 calls/minute max)
 
 # Get the data
 print(f"\n🚀 Fetching {SYMBOL} data in {VS_CURRENCY}...")

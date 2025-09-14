@@ -7,10 +7,24 @@ STEPS TO USE
 '''
 
 # ====== BobbyYo's CoinGecko Configuration 🌙 ======
-COIN_ID = 'ethereum'         # CoinGecko coin ID (e.g., 'bitcoin', 'ethereum', 'solana')
-VS_CURRENCY = 'usd'          # Currency to price against (e.g., 'usd', 'eur', 'btc')
-DAYS = 90                    # Number of days of data to fetch (1-365 for OHLC)
-SAVE_DIR = 'data/coingecko'  # Directory to save the data files
+# 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
+
+COIN_ID = 'ethereum'         # CoinGecko coin ID - CHANGE THIS:
+                           # Popular coins: 'bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot', 'polygon', 'avalanche-2', 'chainlink', 'uniswap'
+                           # More coins: 'ripple', 'litecoin', 'bitcoin-cash', 'algorand', 'cosmos', 'near', 'fantom', 'the-sandbox', 'decentraland'
+                           # Find more at: https://api.coingecko.com/api/v3/coins/list
+
+VS_CURRENCY = 'usd'          # Currency to price against - CHANGE THIS:
+                           # Available: 'usd', 'eur', 'gbp', 'jpy', 'cad', 'aud', 'chf', 'cny', 'hkd', 'sgd'
+                           # Crypto: 'btc', 'eth', 'bnb', 'ada', 'sol', 'dot', 'matic', 'avax'
+
+DAYS = 90                    # Number of days of data to fetch - CHANGE THIS:
+                           # Range: 1-365 days for OHLC data
+                           # Examples: 7 (1 week), 30 (1 month), 90 (3 months), 180 (6 months), 365 (1 year)
+                           # Note: More days = more data points
+
+SAVE_DIR = 'data/coingecko'  # Directory to save files - CHANGE IF NEEDED:
+                           # Examples: 'data/coingecko', 'data/historical', 'backup_data'
 
 # ====== Imports ======
 import pandas as pd
@@ -149,9 +163,9 @@ def get_coingecko_market_chart_fallback(coin_id, vs_currency, days):
 
 # Rate limiting compliance
 def respect_rate_limits():
-    """CoinGecko allows 10-50 calls per minute for free tier"""
+    """CoinGecko allows 5-15 calls per minute for free tier"""
     print("⏱️ Respecting CoinGecko rate limits...")
-    time.sleep(2)  # 2 second delay between requests
+    time.sleep(5)  # 5 second delay between requests (12 calls/minute max)
 
 # Get the data
 print(f"\n🚀 Fetching {COIN_ID} data in {VS_CURRENCY}...")

@@ -12,11 +12,28 @@ NOTE: CryptoCompare API limitations:
 '''
 
 # ====== BobbyYo's CryptoCompare Configuration 🌙 ======
-SYMBOL = 'ETH'               # Symbol to fetch (e.g., 'BTC', 'ETH', 'SOL')
-VS_CURRENCY = 'USDT'         # Currency to price against (e.g., 'USD', 'USDT', 'BTC', 'EUR')
-TIMEFRAME = 'day'            # Timeframe: 'minute', 'hour', 'day'
-LIMIT = 100                  # Number of data points to fetch (max 2000)
-SAVE_DIR = 'data/cryptocompare'  # Directory to save the data files
+# 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
+
+SYMBOL = 'ETH'               # Symbol to fetch - CHANGE THIS:
+                           # Popular symbols: 'BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'MATIC', 'AVAX', 'LINK', 'UNI', 'XRP'
+                           # More symbols: 'LTC', 'BCH', 'ALGO', 'ATOM', 'NEAR', 'FTM', 'SAND', 'MANA', 'AAVE', 'CRV'
+                           # Find more at: https://min-api.cryptocompare.com/data/all/coinlist
+
+VS_CURRENCY = 'USDT'         # Currency to price against - CHANGE THIS:
+                           # Fiat: 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'HKD', 'SGD'
+                           # Crypto: 'USDT', 'USDC', 'BTC', 'ETH', 'BNB', 'ADA', 'SOL', 'DOT', 'MATIC', 'AVAX'
+
+TIMEFRAME = 'day'            # Timeframe - CHANGE THIS:
+                           # Available: 'minute', 'hour', 'day'
+                           # Note: 'minute' gives 1-minute candles, 'hour' gives 1-hour candles, 'day' gives daily candles
+
+LIMIT = 100                  # Number of data points to fetch - CHANGE THIS:
+                           # Range: 1-2000 (max per request)
+                           # Examples: 50, 100, 500, 1000, 2000
+                           # Note: More points = more historical data
+
+SAVE_DIR = 'data/cryptocompare'  # Directory to save files - CHANGE IF NEEDED:
+                               # Examples: 'data/cryptocompare', 'data/historical', 'backup_data'
 
 # ====== Imports ======
 import pandas as pd
