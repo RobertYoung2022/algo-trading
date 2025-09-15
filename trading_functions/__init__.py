@@ -165,6 +165,35 @@ from .utils.strategy_metrics import (
     strategy_metrics_production_readiness
 )
 
+# 🛡️ Data quality validation imports - Bulletproof data validation system
+from .utils.data_quality_validator import (
+    DataQualityValidator,
+    ValidationResult,
+    DataQualityError,
+    validate_data_source_quality,
+    data_quality_production_readiness
+)
+
+# 📊 Data health dashboard imports - Comprehensive quality assessment
+from .utils.data_health_dashboard import (
+    DataHealthDashboard,
+    data_health_dashboard_production_readiness
+)
+
+# 🎯 Data validation configuration imports - Centralized validation rules
+from .config.data_validation_config import (
+    get_validation_config,
+    get_backtesting_requirements,
+    get_symbol_config,
+    get_quality_threshold,
+    validate_source_compatibility,
+    get_comprehensive_config,
+    SOURCE_RELIABILITY,
+    QUALITY_THRESHOLDS,
+    BACKTESTING_REQUIREMENTS,
+    data_validation_config_production_readiness
+)
+
 # Version and metadata
 __version__ = "1.0.0"
 __author__ = "Bobby's Algo Trading Systems 🌙"
@@ -294,21 +323,76 @@ __all__ = [
     'calculate_comprehensive_strategy_metrics',
     'calculate_enhanced_reward_to_risk',
     'validate_trades_data',
-    'strategy_metrics_production_readiness'
+    'strategy_metrics_production_readiness',
+
+    # 🛡️ Data Quality Validation System
+    'DataQualityValidator',
+    'ValidationResult',
+    'DataQualityError',
+    'validate_data_source_quality',
+    'data_quality_production_readiness',
+
+    # 📊 Data Health Dashboard
+    'DataHealthDashboard',
+    'data_health_dashboard_production_readiness',
+
+    # 🎯 Data Validation Configuration
+    'get_validation_config',
+    'get_backtesting_requirements',
+    'get_symbol_config',
+    'get_quality_threshold',
+    'validate_source_compatibility',
+    'get_comprehensive_config',
+    'SOURCE_RELIABILITY',
+    'QUALITY_THRESHOLDS',
+    'BACKTESTING_REQUIREMENTS',
+    'data_validation_config_production_readiness'
 ]
 
 # Production readiness validation on import
 def _validate_library_setup():
-    """🛡️ Validate library setup on import"""
+    """🛡️ Validate library setup on import - Enhanced with Data Validation System"""
     try:
         readiness = production_readiness_check()
         config_valid = readiness.get('config_valid', False)
+
+        # 🛡️ Validate data quality system
+        data_validation_ready = False
+        try:
+            data_val_readiness = data_quality_production_readiness()
+            data_validation_ready = data_val_readiness.get('status') == 'ready'
+        except:
+            pass
+
+        # 📊 Validate data health dashboard
+        dashboard_ready = False
+        try:
+            dashboard_readiness = data_health_dashboard_production_readiness()
+            dashboard_ready = dashboard_readiness.get('status') == 'ready'
+        except:
+            pass
+
+        # 🎯 Validate data validation config
+        config_system_ready = False
+        try:
+            config_readiness = data_validation_config_production_readiness()
+            config_system_ready = config_readiness.get('status') == 'ready'
+        except:
+            pass
 
         if not config_valid:
             print("⚠️  Trading Functions Library: Configuration validation failed")
             print("📝 Run production_readiness_check() for detailed diagnostics")
         else:
             print("✅ Trading Functions Library loaded successfully 🚀")
+
+            # 🛡️ Report data validation system status
+            if data_validation_ready and dashboard_ready and config_system_ready:
+                print("🛡️ Data Quality Validation System: READY")
+            elif data_validation_ready:
+                print("🛡️ Data Quality Validation System: PARTIAL (core ready)")
+            else:
+                print("⚠️ Data Quality Validation System: NOT AVAILABLE")
 
     except Exception as e:
         print(f"⚠️  Trading Functions Library: Setup validation error: {e}")
