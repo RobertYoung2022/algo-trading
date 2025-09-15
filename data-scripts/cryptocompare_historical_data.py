@@ -19,15 +19,15 @@ SYMBOL = 'ETH'               # Symbol to fetch - CHANGE THIS:
                            # More symbols: 'LTC', 'BCH', 'ALGO', 'ATOM', 'NEAR', 'FTM', 'SAND', 'MANA', 'AAVE', 'CRV'
                            # Find more at: https://min-api.cryptocompare.com/data/all/coinlist
 
-VS_CURRENCY = 'USDT'         # Currency to price against - CHANGE THIS:
+VS_CURRENCY = 'USDC'         # Currency to price against - CHANGE THIS:
                            # Fiat: 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'HKD', 'SGD'
                            # Crypto: 'USDT', 'USDC', 'BTC', 'ETH', 'BNB', 'ADA', 'SOL', 'DOT', 'MATIC', 'AVAX'
 
-TIMEFRAME = 'day'            # Timeframe - CHANGE THIS:
+TIMEFRAME = 'hour'            # Timeframe - CHANGE THIS:
                            # Available: 'minute', 'hour', 'day'
                            # Note: 'minute' gives 1-minute candles, 'hour' gives 1-hour candles, 'day' gives daily candles
 
-LIMIT = 100                  # Number of data points to fetch - CHANGE THIS:
+LIMIT = 1000                  # Number of data points to fetch - CHANGE THIS:
                            # Range: 1-2000 (max per request)
                            # Examples: 50, 100, 500, 1000, 2000
                            # Note: More points = more historical data

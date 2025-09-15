@@ -16,15 +16,15 @@ Note: You need a Coinbase Exchange API key (not Coinbase Pro or Advanced Trade)
 # ====== BobbyYo's Configuration 🌙 ======
 # 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
 
-SYMBOL = 'BTC-USD'        # Trading pair - CHANGE THIS:
+SYMBOL = 'ETH-USD'        # Trading pair - CHANGE THIS:
                          # Popular pairs: 'BTC-USD', 'ETH-USD', 'SOL-USD', 'ADA-USD', 'DOT-USD', 'MATIC-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD'
                          # More pairs: 'XRP-USD', 'LTC-USD', 'BCH-USD', 'ALGO-USD', 'ATOM-USD', 'NEAR-USD', 'FTM-USD', 'SAND-USD', 'MANA-USD'
 
-TIMEFRAME = '5m'          # Timeframe - CHANGE THIS:
+TIMEFRAME = '1m'          # Timeframe - CHANGE THIS:
                          # Available: '1m', '5m', '15m', '1h', '6h', '1d'
                          # Note: '1m' gives more data but takes longer to fetch
 
-WEEKS = 70                # How many weeks of data to fetch - CHANGE THIS:
+WEEKS = 1000                # How many weeks of data to fetch - CHANGE THIS:
                          # Examples: 10 (2.5 months), 26 (6 months), 52 (1 year), 104 (2 years), 208 (4 years)
                          # Warning: Large values may hit API limits or take very long
 

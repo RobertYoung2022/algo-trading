@@ -9,7 +9,7 @@ STEPS TO USE
 # ====== BobbyYo's CoinGecko Configuration 🌙 ======
 # 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
 
-COIN_ID = 'ethereum'         # CoinGecko coin ID - CHANGE THIS:
+COIN_ID = 'ripple'         # CoinGecko coin ID - CHANGE THIS:
                            # Popular coins: 'bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot', 'polygon', 'avalanche-2', 'chainlink', 'uniswap'
                            # More coins: 'ripple', 'litecoin', 'bitcoin-cash', 'algorand', 'cosmos', 'near', 'fantom', 'the-sandbox', 'decentraland'
                            # Find more at: https://api.coingecko.com/api/v3/coins/list
@@ -18,7 +18,7 @@ VS_CURRENCY = 'usd'          # Currency to price against - CHANGE THIS:
                            # Available: 'usd', 'eur', 'gbp', 'jpy', 'cad', 'aud', 'chf', 'cny', 'hkd', 'sgd'
                            # Crypto: 'btc', 'eth', 'bnb', 'ada', 'sol', 'dot', 'matic', 'avax'
 
-DAYS = 90                    # Number of days of data to fetch - CHANGE THIS:
+DAYS = 365                   # Number of days of data to fetch - CHANGE THIS:
                            # Range: 1-365 days for OHLC data
                            # Examples: 7 (1 week), 30 (1 month), 90 (3 months), 180 (6 months), 365 (1 year)
                            # Note: More days = more data points

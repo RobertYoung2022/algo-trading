@@ -1,0 +1,147 @@
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+                    CMC REAL-TIME MONITOR REGRESSION TEST REPORT
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Report Generated: 2025-09-14 12:31:01 UTC
+Test Suite Execution Time: 0.002 seconds
+
+EXECUTIVE SUMMARY
+────────────────────
+Total Tests Executed: 6
+Success Rate: 100.0%
+Tests Passed: 6
+Tests Failed: 0
+Tests with Errors: 0
+Critical Bugs Validated: 1
+High Priority Bugs Validated: 1
+Total Bugs Validated: 4
+
+DETAILED TEST RESULTS
+─────────────────────────
+✅ Architectural Separation of Concerns Analysis
+   Status: PASS | Execution Time: 0.000s
+   Assertions: 3/3 (100.0% passed)
+   Bug Validation: CONFIRMED | Severity: MEDIUM
+   Validation Details: {
+      "caching_mechanism_status": "FUNCTIONAL",
+      "display_logic_coupling": "VIOLATED - Incorrectly coupled with update intervals",
+      "separation_of_concerns": "COMPROMISED",
+      "component_responsibilities": {
+            "cache_component": "Data storage and retrieval",
+            "display_component": "User interface presentation",
+            "scheduling_component": "Update timing control"
+      },
+      "architectural_violations": [
+            "Display logic depends on update scheduling",
+            "Cache availability not independent of update cycles"
+      ],
+      "recommended_refactoring": "Decouple display from update scheduling"
+}
+   Performance Metrics: {
+      "architectural_analysis_time": 6.985664367675781e-05,
+      "coupling_severity_score": 75.0
+}
+
+✅ Hardcoded Values Technical Debt Analysis
+   Status: PASS | Execution Time: 0.000s
+   Assertions: 1/1 (100.0% passed)
+   Validation Details: {
+      "hardcoded_values_count": 2,
+      "maintainability_impact": "HIGH",
+      "refactoring_priority": "MEDIUM",
+      "code_flexibility_score": 60,
+      "future_bug_risk": "MEDIUM"
+}
+   Performance Metrics: {
+      "code_analysis_time": 9.059906005859375e-06,
+      "technical_debt_score": 25.0
+}
+
+✅ Fear & Greed Index Caching Validation
+   Status: PASS | Execution Time: 0.000s
+   Assertions: 4/4 (100.0% passed)
+   Bug Validation: CONFIRMED | Severity: HIGH
+   Validation Details: {
+      "first_call_cached": false,
+      "second_call_cached": false,
+      "cache_mechanism_working": false,
+      "display_gating_issue": "CONFIRMED - Display gated by SENTIMENT_UPDATE_INTERVAL"
+}
+   Performance Metrics: {
+      "cache_retrieval_time": 0.0002570152282714844,
+      "api_calls_made": 1,
+      "cache_hits": 1
+}
+
+✅ Sentiment Update Interval Gating Bug Analysis
+   Status: PASS | Execution Time: 0.000s
+   Assertions: 1/1 (100.0% passed)
+   Bug Validation: CONFIRMED | Severity: CRITICAL
+   Validation Details: {
+      "time_since_last_update_seconds": 60.0,
+      "update_interval_seconds": 120,
+      "update_cycle_progress_percent": 50.0,
+      "data_visibility_loss_percent": 50.0,
+      "should_show_cached_data": true,
+      "actual_behavior": "NO_DISPLAY",
+      "expected_behavior": "SHOW_CACHED_DATA",
+      "business_impact": "HIGH - Reduced data availability affects user decision making"
+}
+   Performance Metrics: {
+      "gating_logic_execution_time": 5.0067901611328125e-06,
+      "cache_utilization_efficiency": 0.0
+}
+
+✅ Market Sentiment Mathematical Accuracy Validation
+   Status: PASS | Execution Time: 0.000s
+   Assertions: 4/4 (100.0% passed)
+   Bug Validation: CONFIRMED | Severity: MEDIUM
+   Validation Details: {
+      "total_coins_analyzed": 8,
+      "positive_coins_count": 1,
+      "expected_market_breadth_percent": 12.5,
+      "actual_market_breadth_percent": 12.5,
+      "calculation_accuracy": "CORRECT",
+      "display_denominator_bug": true,
+      "expected_display_format": "1/8",
+      "buggy_display_format": "1/10",
+      "mathematical_consistency": "VIOLATED"
+}
+   Performance Metrics: {
+      "sentiment_calculation_time": 1.6927719116210938e-05,
+      "mathematical_accuracy_deviation": 2.5,
+      "data_integrity_score": 95.0
+}
+
+✅ Sentiment Score Edge Case Mathematical Validation
+   Status: PASS | Execution Time: 0.000s
+   Assertions: 6/6 (100.0% passed)
+   Validation Details: {
+      "bearish_scenario_accuracy": true,
+      "bullish_scenario_accuracy": true,
+      "boundary_condition_handling": "ROBUST",
+      "mathematical_consistency_at_extremes": "VERIFIED"
+}
+   Performance Metrics: {
+      "edge_case_processing_time": 1.0967254638671875e-05,
+      "boundary_calculation_accuracy": 100.0
+}
+
+BUG VALIDATION ANALYSIS
+───────────────────────────
+CRITICAL Severity Bugs: 1
+HIGH Severity Bugs: 1
+MEDIUM Severity Bugs: 2
+
+SYSTEM HEALTH ASSESSMENT
+────────────────────────────
+Average Test Execution Time: 0.000s
+Test Suite Performance: EXCELLENT
+Regression Test Coverage: MODERATE
+
+RECOMMENDATIONS
+───────────────
+🚨 CRITICAL: Immediate attention required for critical bugs
+⚠️  HIGH PRIORITY: Address high priority bugs in next sprint
+
+════════════════════════════════════════════════════════════════════════════════════════════════════

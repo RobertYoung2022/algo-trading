@@ -1,0 +1,1 @@
+- "use @trading_functions/ when creating backtesting script or trading bots. if function not available consult @.claude/agents/ for best ways to implement the functions"

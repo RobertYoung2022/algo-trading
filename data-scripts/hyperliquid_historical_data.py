@@ -15,7 +15,7 @@ import time
 # ====== BobbyYo's Hyperliquid Configuration 🌙 ======
 # 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
 
-SYMBOL = 'ETH'               # Symbol to fetch - CHANGE THIS:
+SYMBOL = 'XRP'               # Symbol to fetch - CHANGE THIS:
                            # Available: 'BTC', 'ETH', 'SOL', 'ARB', 'AVAX', 'ATOM', 'DOT', 'MATIC', 'LINK', 'UNI'
                            # More: 'XRP', 'ADA', 'LTC', 'BCH', 'ALGO', 'NEAR', 'FTM', 'SAND', 'MANA', 'AAVE'
                            # Note: Hyperliquid supports specific trading pairs only

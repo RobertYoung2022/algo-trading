@@ -1,0 +1,51 @@
+# Testing Dependencies for Backend Test Suite
+# ============================================
+
+# Core testing framework
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-timeout==2.2.0
+pytest-xdist==3.3.1
+
+# HTTP mocking and fixtures
+requests-mock==1.11.0
+responses==0.24.0
+
+# Performance and load testing
+pytest-benchmark==4.0.0
+pytest-profiling==1.7.0
+locust==2.17.0
+
+# Data validation and fixtures
+pytest-factoryboy==2.5.1
+faker==19.12.0
+
+# Monitoring and reporting
+pytest-html==4.1.1
+pytest-json-report==1.5.0
+allure-pytest==2.12.0
+
+# Code quality and linting (optional for testing)
+pytest-flake8==1.1.1
+pytest-mypy==0.10.3
+
+# API testing utilities
+pytest-httpserver==1.0.8
+werkzeug==3.0.1
+
+# Data manipulation for test assertions
+pandas>=1.5.0,<2.0.0
+numpy>=1.21.0,<2.0.0
+
+# Existing project dependencies (should match main requirements)
+python-dotenv>=0.19.0
+termcolor>=1.1.0
+yfinance>=0.2.0
+requests>=2.28.0
+psutil>=5.9.0  # For performance monitoring
+
+# Optional dependencies for advanced testing
+selenium>=4.15.0  # For browser-based integration tests
+docker>=6.1.0     # For containerized test environments
