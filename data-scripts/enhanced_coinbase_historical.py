@@ -25,16 +25,16 @@ warnings.filterwarnings('ignore')
 # ====== BobbyYo's Enhanced Coinbase Configuration 🌙 ======
 # 🔧 MODIFY THESE SETTINGS TO CHANGE WHAT DATA YOU FETCH:
 
-SYMBOL = 'XRP-USD'        # Trading pair - CHANGE THIS:
+SYMBOL = 'BTC-USD'        # Trading pair - CHANGE THIS:
                          # Popular pairs: 'BTC-USD', 'ETH-USD', 'SOL-USD', 'ADA-USD', 'DOT-USD', 'MATIC-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD'
                          # More pairs: 'XRP-USD', 'LTC-USD', 'BCH-USD', 'ALGO-USD', 'ATOM-USD', 'NEAR-USD', 'FTM-USD', 'SAND-USD', 'MANA-USD'
 
-TIMEFRAME = '1m'          # Timeframe - CHANGE THIS:
+TIMEFRAME = '5m'          # Timeframe - CHANGE THIS:
                          # Available: '1m', '5m', '15m', '1h', '6h', '1d'
                          # Note: '1d' is best for long-term backtesting (like your BTCUSD file)
                          # '1h' provides good balance of detail and data size for 100+ weeks
 
-WEEKS = 52              # How many weeks of data to fetch - CHANGE THIS:
+WEEKS = 50              # How many weeks of data to fetch - CHANGE THIS:
                          # Examples: 52 (1 year), 104 (2 years), 500 (10 years), 1000 (19+ years)
                          # For minute data: max ~50 weeks, for hourly: 100-200 weeks, for daily: 1000+ weeks
 
