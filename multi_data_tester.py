@@ -67,7 +67,7 @@ warnings.filterwarnings('ignore')
 
 DATA_SOURCES = [
 # BITCOIN DATA - Available datasets
-('BTC-1d-1000wks', '/Users/bobbyyo/Projects/algo-fun/data/BTCUSD-1d-1000wks-data.csv', 'coinbase'),
+('BTC-1d-Yahoo', '/Users/bobbyyo/Projects/algo-fun/data/yahoo/BTCUSD-20yr-yahoo-data.csv', 'yahoo'),  # 🛡️ Fixed: Using validated Yahoo data instead of corrupted 1000wks
 ('BTC-1h-500wks', '/Users/bobbyyo/Projects/algo-fun/data/BTCUSD-1h-500wks-data.csv', 'coinbase'),
 ('BTC-6h-500wks', '/Users/bobbyyo/Projects/algo-fun/data/BTCUSD-6h-500wks-data.csv', 'coinbase'),
 

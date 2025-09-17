@@ -16,8 +16,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ====== Configuration ======
-TICKER = 'XRP-USD'            # Yahoo Finance ticker symbol
-YEARS_OF_DATA = 10            # Number of years to fetch (can go up to 20+ for many assets)
+TICKER = 'BTC-USD'            # Yahoo Finance ticker symbol
+YEARS_OF_DATA = 20            # Number of years to fetch (can go up to 20+ for many assets)
 SAVE_DIR = 'data/yahoo'       # Directory to save files
 
 # Popular tickers for reference:
