@@ -192,6 +192,67 @@ Together, they ensure all strategies pass through **validated, production-ready 
 - **Legacy Function Detection:** Warn when old patterns could use modern equivalents
 - **Cross-Reference Validation:** Ensure all required functions exist in current library
 - **Migration Guidance:** Provide clear paths from `my_nice_function.py` to `@trading_functions/`
-- **Function Capability Matrix:** Maintain awareness of what functions are available vs needed  
+- **Function Capability Matrix:** Maintain awareness of what functions are available vs needed
+
+***
+
+## 📄 **Mandatory Strategy Documentation Requirements**
+
+**Every strategy MUST generate comprehensive documentation** to ensure reproducibility, decision-making clarity, and project continuity. No strategy testing is complete without proper documentation.
+
+### 🎯 **Required Documentation Files**
+
+#### 1. **Analysis Report** - `[STRATEGY_NAME]_ANALYSIS_REPORT.md`
+**Location:** `/strategies/results/`
+**Purpose:** Comprehensive performance analysis and strategy assessment
+**Contents:**
+- **Executive Summary:** Strategy viability (Viable/Needs Optimization/Not Viable)
+- **Performance Breakdown:** Detailed metrics by asset (Sharpe, Sortino, Win Rate, Max DD)
+- **Signal Quality Analysis:** Trade frequency, signal reliability, entry/exit effectiveness
+- **Market Condition Analysis:** How strategy performs across volatility regimes
+- **Risk Assessment:** Drawdown patterns, risk-adjusted returns, correlation analysis
+- **Asset Suitability Rankings:** Which cryptocurrencies work best with this strategy
+
+#### 2. **Optimization Guide** - `[STRATEGY_NAME]_OPTIMIZATION_GUIDE.md`
+**Location:** `/strategies/results/`
+**Purpose:** Actionable parameter optimization roadmap
+**Contents:**
+- **Current vs Recommended Parameters:** Side-by-side comparison table
+- **Parameter Sensitivity Analysis:** Which parameters have highest impact
+- **Asset-Specific Recommendations:** Optimized settings per cryptocurrency
+- **Multi-Phase Optimization Plan:** Step-by-step improvement pathway
+- **Expected Performance Targets:** Realistic goals for optimization
+- **Implementation Priority:** Which optimizations to tackle first
+
+#### 3. **Decision Summary** - `[STRATEGY_NAME]_DECISION_SUMMARY.md`
+**Location:** `/strategies/results/`
+**Purpose:** Executive decision-making document
+**Contents:**
+- **Strategy Status:** Ready for Production/Needs Optimization/Archive
+- **Key Findings:** 3-5 bullet points of most important insights
+- **Next Steps:** Specific actions required
+- **Resource Requirements:** Time/effort needed for optimization
+- **ROI Assessment:** Expected value vs development cost
+- **Related Files:** Links to all strategy files, test scripts, and results
+
+### 📁 **File Naming Conventions**
+- **Strategy Files:** `[strategy_name]_strategy.py` (lowercase, underscores)
+- **Test Scripts:** `test_[strategy_name]_multi_asset.py`
+- **Results CSVs:** `[strategy_name]_results_[YYYYMMDD_HHMMSS].csv`
+- **Documentation:** `[STRATEGY_NAME]_[DOCUMENT_TYPE].md` (UPPERCASE for docs)
+
+### ⚡ **Documentation Workflow**
+1. **During Strategy Development:** Create placeholder documentation files
+2. **After Testing Complete:** Generate full analysis reports using test results
+3. **Before Strategy Archive/Deploy:** Ensure all three documents are complete
+4. **Periodic Review:** Update documentation when strategy parameters change
+
+### 🔍 **Quality Standards**
+- **Completeness:** All sections must be filled with real data, not placeholders
+- **Actionability:** Every recommendation must be specific and implementable
+- **Traceability:** Clear links between documentation and source files/data
+- **Future-Proofing:** Documentation must enable someone else to understand and continue the work
+
+**Enforcement:** No strategy is considered "complete" without full documentation suite. This ensures Bobby can make informed decisions about strategy deployment, optimization priorities, and resource allocation across the entire algo-trading portfolio. 🌙💫🚀
 
 

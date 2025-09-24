@@ -140,7 +140,12 @@ When engaged, you first assess the current stage:
    - **Compare against my_nice_function.py** to identify legacy patterns
    - **Use Grep/Glob tools** to verify function imports before coding
    - **Document function dependencies** and validate availability
-2. **🏛️ ADVANCED MARKET STRUCTURE ENHANCEMENTS (AVAILABLE):**
+2. **🚨 MANDATORY NATIVE RESULTS DISPLAY SETUP:**
+   - **MUST import universal_native_results_display module** from strategies/analysis/
+   - **MUST use enhanced_backtest_runner() for ALL backtesting** - never direct bt.run()
+   - **MUST display full native backtesting.py results for EVERY test**
+   - **FORBIDDEN to summarize or truncate any backtesting output**
+3. **🏛️ ADVANCED MARKET STRUCTURE ENHANCEMENTS (AVAILABLE):**
    - **Consider multi-timeframe swing validation** - minimum 2 timeframes with fractal alignment for higher accuracy
    - **Add volume/order flow confirmation** for structure breaks (volume >1.5x average + delta) to filter false breakouts
    - **Implement pullback depth classification** with Fibonacci levels (38.2%-61.8% sweet spot) for better entries
@@ -148,20 +153,20 @@ When engaged, you first assess the current stage:
    - **Add dynamic structure adaptation** based on volatility and correlation environments for regime awareness
    - **Implement supply/demand zone strength scoring** (>70 score requirement) for high-probability zones
    - **Code institutional hedge period detection** with position sizing safeguards for protection
-3. **Review similar strategies** in /strategies for patterns (strategies/analysis/macd_momentum_strategy.py, current examples)
-4. **Check @trading_functions/** for available technical analysis and risk management functions
-5. **Legacy Migration Check** - identify any my_nice_function.py usage that should be modernized
-6. **Set up Strategy class** with proper backtesting.py inheritance
-7. **Implement indicators** in init() using talib (Bobby's preference) or trading_functions when available
-8. **Code trading logic** in next() with clear conditions and proper risk management + structure validation
-9. **Configure multi-data testing** from the start following established patterns with validation
-10. **Add comprehensive stats output** and Bobby's documentation style
-11. **Validate data quality** (≥75 score) before testing
-12. **Test with single validated data source** first, then expand to all validated sources
-13. **Generate results CSV** in /strategies/results/ directory
-14. **Display complete backtesting.py stats output** - never summarize
-15. **Document exact data sources** with paths and characteristics
-16. **Provide comprehensive analysis** of all results with structure validation performance metrics
+4. **Review similar strategies** in /strategies for patterns (strategies/analysis/macd_momentum_strategy.py, current examples)
+5. **Check @trading_functions/** for available technical analysis and risk management functions
+6. **Legacy Migration Check** - identify any my_nice_function.py usage that should be modernized
+7. **Set up Strategy class** with proper backtesting.py inheritance
+8. **Implement indicators** in init() using talib (Bobby's preference) or trading_functions when available
+9. **Code trading logic** in next() with clear conditions and proper risk management + structure validation
+10. **Configure multi-data testing** from the start following established patterns with validation
+11. **Add comprehensive stats output** and Bobby's documentation style
+12. **Validate data quality** (≥75 score) before testing
+13. **Test with single validated data source** first, then expand to all validated sources
+14. **Generate results CSV** in /strategies/results/ directory
+15. **🚨 MANDATORY: Display complete backtesting.py stats output using enhanced_backtest_runner** - never summarize
+16. **Document exact data sources** with paths and characteristics
+17. **Provide comprehensive analysis** of all results with structure validation performance metrics
 
 ### For Existing Strategies
 1. **🛠️ MANDATORY FUNCTION AUDIT FIRST:**
@@ -221,9 +226,13 @@ When engaged, you first assess the current stage:
 - **Maintain Bobby's coding style** with emoji comments and clear documentation
 - **Follow CLAUDE.md instructions** for @trading_functions/ usage
 
-### Output Standards
-- **Always display the complete backtesting.py stats output - never summarize**
-- **Print complete backtest statistics**, never partial results
+### Output Standards - MANDATORY NATIVE RESULTS DISPLAY
+- **🚨 CRITICAL REQUIREMENT: Always display the complete backtesting.py stats output - NEVER summarize or truncate**
+- **🚨 MANDATORY: Use enhanced_backtest_runner() from universal_native_results_display module for ALL strategy testing**
+- **🚨 FORBIDDEN: Direct bt.run() calls without native results display**
+- **Print complete backtest statistics** with full native formatting for every individual test
+- **Show complete 30+ line backtesting.py output** exactly as produced by the framework
+- **Display full native results for EVERY asset tested** in multi-asset frameworks
 - **Show visualization plots** without saving files
 - **Provide clear performance metrics** (Sharpe, max drawdown, win rate, etc.)
 - **Document exact data sources used with file paths and characteristics**
@@ -276,12 +285,15 @@ Bobby expects comprehensive multi-asset testing for ALL strategies. You MUST alw
 
 Bobby expects comprehensive results display for ALL strategy testing. You MUST always provide:
 
-### 1. Complete Backtesting.py Output Display
-- **Always display the complete backtesting.py stats output - never summarize**
-- **Show the full stats output** from backtesting.py (the complete results block)
-- **Never summarize or truncate** the backtesting results
+### 1. Complete Backtesting.py Output Display - UNIVERSAL REQUIREMENT
+- **🚨 MANDATORY FOR ALL STRATEGIES: Always display the complete backtesting.py stats output - never summarize**
+- **🚨 UNIVERSAL REQUIREMENT: Use enhanced_backtest_runner() from universal_native_results_display for EVERY strategy test**
+- **🚨 FORBIDDEN ACROSS ALL STRATEGIES: Direct bt.run() calls without native display framework**
+- **Show the full stats output** from backtesting.py (the complete results block) for EVERY individual test
+- **Never summarize or truncate** the backtesting results across ANY strategy type
 - **Include ALL metrics**: Return %, Buy & Hold Return %, Max Drawdown %, Avg Drawdown %, Max Drawdown Duration, Avg Drawdown Duration, # Trades, Win Rate %, Best Trade %, Worst Trade %, Avg Trade %, Max Trade Duration, Avg Trade Duration, Profit Factor, Expectancy %, SQN (System Quality Number), Kelly Criterion %, Sharpe Ratio, Sortino Ratio, Calmar Ratio, Alpha, Beta, Exposure Time %, etc.
 - **Display the exact format** as produced by backtesting.py, preserving all decimal precision
+- **Apply to ALL existing and new strategies**: Fibonacci, MACD, Volatility, ETH, One-Candle, etc.
 
 ### 2. Data Source Documentation
 - **Always specify exactly which data files were used** with complete absolute paths

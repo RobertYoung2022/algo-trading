@@ -66,10 +66,8 @@ warnings.filterwarnings('ignore')
 # data_type can be: 'coinbase', 'ib', or 'yahoo'
 
 DATA_SOURCES = [
-# BITCOIN DATA - Available datasets
-('BTC-1d-Yahoo', '/Users/bobbyyo/Projects/algo-fun/data/yahoo/BTCUSD-20yr-yahoo-data.csv', 'yahoo'),  # 🛡️ Fixed: Using validated Yahoo data instead of corrupted 1000wks
-('BTC-1h-500wks', '/Users/bobbyyo/Projects/algo-fun/data/BTCUSD-1h-500wks-data.csv', 'coinbase'),
-('BTC-6h-500wks', '/Users/bobbyyo/Projects/algo-fun/data/BTCUSD-6h-500wks-data.csv', 'coinbase'),
+# BITCOIN DATA - Available datasets (Validated Sources Only)
+('BTC-1d-Yahoo', '/Users/bobbyyo/Projects/algo-fun/data/yahoo/BTCUSD-20yr-yahoo-data.csv', 'yahoo'),  # 🛡️ Validated: Clean Yahoo data source
 
 # ETHEREUM DATA - Hyperliquid datasets
 ('ETH-1d-5yrs-old', '/Users/bobbyyo/Projects/algo-fun/data/ETH_1d_20250909_030924_historical.csv', 'coinbase'),
