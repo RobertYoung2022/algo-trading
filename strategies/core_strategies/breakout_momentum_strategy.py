@@ -66,6 +66,12 @@ class BreakoutMomentumStrategy(Strategy):
     trail_stop_pct = 1.5     # Trailing stop percentage
     min_range_size_pct = 1.0 # Minimum range size for valid breakout (%)
 
+    # 🌪️ Enhancement #1: ATR Volatility Filter (Step 1.2)
+    atr_period = 14          # ATR calculation period
+    atr_percentile = 90      # Skip trades if ATR > this percentile (90 = top 10% volatility)
+    atr_spike_threshold = 2.5  # Skip if ATR spiked >2.5x from baseline
+    use_atr_filter = True    # Enable/disable ATR filter for testing
+
     def init(self):
         """🏗️ Initialize strategy indicators using @trading_functions"""
 
@@ -100,6 +106,31 @@ class BreakoutMomentumStrategy(Strategy):
         else:
             print("⚠️ No volume data available - using price-only breakouts")
             self.volume_available = False
+
+        # 🌪️ Enhancement #1: ATR Volatility Filter
+        if self.use_atr_filter:
+            def calculate_atr(high, low, close):
+                """Calculate ATR (Average True Range)"""
+                high_series = pd.Series(high)
+                low_series = pd.Series(low)
+                close_series = pd.Series(close)
+
+                # Calculate True Range
+                hl = high_series - low_series
+                hc = abs(high_series - close_series.shift(1))
+                lc = abs(low_series - close_series.shift(1))
+
+                tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
+
+                # Calculate ATR as rolling average of TR
+                atr = tr.rolling(window=self.atr_period).mean()
+                return atr.values
+
+            self.atr = self.I(calculate_atr, self.data.High, self.data.Low, self.data.Close)
+
+            # Calculate ATR percentile threshold (using all available data)
+            # This will be updated as more data comes in during backtest
+            print(f"🌪️ ATR filter enabled: {self.atr_period}-period, {self.atr_percentile}th percentile threshold")
 
         # 🎯 Tracking variables
         self.entry_price = None
@@ -155,10 +186,45 @@ class BreakoutMomentumStrategy(Strategy):
             if not pd.isna(avg_vol) and avg_vol > 0:
                 volume_confirmed = current_volume >= (avg_vol * self.volume_threshold)
 
+        # 🌪️ Enhancement #1: ATR Volatility Regime Filter
+        # Two-stage filter:
+        # 1. Spike detection: Reject if ATR spiked >2x from recent baseline
+        # 2. Regime detection: Reject if in top 20% volatility (80th percentile)
+        atr_filter_pass = True
+        if self.use_atr_filter and len(self.atr) > 50:
+            current_atr = self.atr[-1]
+
+            if not pd.isna(current_atr):
+                # Stage 1: Check for ATR spike (bars -30 to -10 baseline)
+                baseline_atr_values = [self.atr[i] for i in range(-30, -10) if not pd.isna(self.atr[i])]
+                spike_detected = False
+
+                if len(baseline_atr_values) >= 10:
+                    baseline_atr = sum(baseline_atr_values) / len(baseline_atr_values)
+                    atr_ratio = current_atr / baseline_atr if baseline_atr > 0 else 1.0
+
+                    if atr_ratio > self.atr_spike_threshold:
+                        spike_detected = True
+
+                # Stage 2: Check long-term volatility regime (bars -100 to -20)
+                lookback_start = min(80, len(self.atr) - 20)
+                historical_atr = [self.atr[i] for i in range(-lookback_start-20, -20) if not pd.isna(self.atr[i])]
+                high_vol_regime = False
+
+                if len(historical_atr) >= 20:
+                    atr_threshold = sorted(historical_atr)[int(len(historical_atr) * (self.atr_percentile / 100))]
+                    if current_atr > atr_threshold:
+                        high_vol_regime = True
+
+                # Reject if BOTH conditions met (high spike + high regime = likely false breakout)
+                # Valid breakouts may have elevated ATR but not dramatic spikes
+                if spike_detected and high_vol_regime:
+                    atr_filter_pass = False
+
         # 🔄 Position management
         if not self.position:
-            # 📈 Bullish breakout: Price breaks above range high with volume
-            if current_high > range_high and volume_confirmed:
+            # 📈 Bullish breakout: Price breaks above range high with volume AND low volatility
+            if current_high > range_high and volume_confirmed and atr_filter_pass:
                 # 🎯 Calculate position size with breakout-specific logic
                 if TRADING_FUNCTIONS_AVAILABLE:
                     try:
@@ -188,8 +254,8 @@ class BreakoutMomentumStrategy(Strategy):
                 self.stop_loss = range_low  # Initial stop at range support
                 self.trail_high = current_high
 
-            # 📉 Bearish breakout: Price breaks below range low with volume
-            elif current_low < range_low and volume_confirmed:
+            # 📉 Bearish breakout: Price breaks below range low with volume AND low volatility
+            elif current_low < range_low and volume_confirmed and atr_filter_pass:
                 # Similar logic for short positions
                 if TRADING_FUNCTIONS_AVAILABLE:
                     try:

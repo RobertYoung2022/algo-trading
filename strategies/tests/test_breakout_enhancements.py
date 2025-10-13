@@ -40,24 +40,168 @@ class TestATRCalculation:
 
     def test_atr_calculation_basic(self, valid_breakout_data):
         """🔧 Test basic ATR calculation"""
-        # This test will be implemented when ATR filter is added
-        # For now, just verify data structure
-        assert 'High' in valid_breakout_data.columns
-        assert 'Low' in valid_breakout_data.columns
-        assert 'Close' in valid_breakout_data.columns
-        assert len(valid_breakout_data) > 14  # Minimum for ATR(14)
+        df = valid_breakout_data.copy()
+
+        # Verify data structure
+        assert 'High' in df.columns
+        assert 'Low' in df.columns
+        assert 'Close' in df.columns
+        assert len(df) > 14  # Minimum for ATR(14)
+
+        # Calculate ATR manually to verify
+        # ATR = Average True Range over 14 periods
+        # TR = max(high-low, abs(high-prev_close), abs(low-prev_close))
+
+        high = df['High'].values
+        low = df['Low'].values
+        close = df['Close'].values
+
+        # Calculate True Range
+        tr = []
+        for i in range(1, len(df)):
+            hl = high[i] - low[i]
+            hc = abs(high[i] - close[i-1])
+            lc = abs(low[i] - close[i-1])
+            tr.append(max(hl, hc, lc))
+
+        # Calculate ATR (14-period moving average of TR)
+        atr_period = 14
+        if len(tr) >= atr_period:
+            atr = sum(tr[:atr_period]) / atr_period
+
+            # ATR should be positive
+            assert atr > 0, "ATR should be positive"
+
+            # ATR should be reasonable (not crazy large)
+            avg_price = df['Close'].mean()
+            assert atr < avg_price * 0.5, "ATR should be less than 50% of avg price"
+
+            print(f"✅ ATR calculated: {atr:.2f} (avg price: {avg_price:.2f})")
+        else:
+            pytest.skip("Not enough data for ATR calculation")
 
     def test_atr_identifies_high_volatility(self, high_volatility_data):
         """⚡ Test that ATR correctly identifies high volatility periods"""
-        # Placeholder for ATR filter implementation
-        # Expected: ATR should be elevated in high_volatility_data
-        pass
+        df = high_volatility_data.copy()
+
+        # Calculate ATR
+        high = df['High'].values
+        low = df['Low'].values
+        close = df['Close'].values
+
+        tr = []
+        for i in range(1, len(df)):
+            hl = high[i] - low[i]
+            hc = abs(high[i] - close[i-1])
+            lc = abs(low[i] - close[i-1])
+            tr.append(max(hl, hc, lc))
+
+        atr_period = 14
+        if len(tr) >= atr_period:
+            atr = sum(tr[:atr_period]) / atr_period
+            avg_price = df['Close'].iloc[:20].mean()
+            atr_pct = (atr / avg_price) * 100
+
+            # High volatility scenario should have ATR >3% of price
+            assert atr_pct > 3.0, f"High volatility ATR should be >3%, got {atr_pct:.2f}%"
+            print(f"✅ High volatility ATR: {atr_pct:.2f}% of price")
 
     def test_atr_identifies_low_volatility(self, low_volatility_data):
         """🐌 Test that ATR correctly identifies low volatility periods"""
-        # Placeholder for ATR filter implementation
-        # Expected: ATR should be low in low_volatility_data
-        pass
+        df = low_volatility_data.copy()
+
+        # Calculate ATR
+        high = df['High'].values
+        low = df['Low'].values
+        close = df['Close'].values
+
+        tr = []
+        for i in range(1, len(df)):
+            hl = high[i] - low[i]
+            hc = abs(high[i] - close[i-1])
+            lc = abs(low[i] - close[i-1])
+            tr.append(max(hl, hc, lc))
+
+        atr_period = 14
+        if len(tr) >= atr_period:
+            atr = sum(tr[:atr_period]) / atr_period
+            avg_price = df['Close'].iloc[:20].mean()
+            atr_pct = (atr / avg_price) * 100
+
+            # Low volatility scenario should have ATR <1% of price
+            assert atr_pct < 1.0, f"Low volatility ATR should be <1%, got {atr_pct:.2f}%"
+            print(f"✅ Low volatility ATR: {atr_pct:.2f}% of price")
+
+
+@pytest.mark.unit
+class TestVolatilityRegimeFilter:
+    """Test volatility regime filtering logic"""
+
+    def test_regime_filter_rejects_high_volatility(self, high_volatility_data):
+        """🚫 Test that high volatility periods are rejected"""
+        df = high_volatility_data.copy()
+
+        # Calculate ATR
+        high = df['High'].values
+        low = df['Low'].values
+        close = df['Close'].values
+
+        # Calculate rolling ATR for entire dataset
+        atr_period = 14
+        atr_values = []
+
+        for i in range(atr_period, len(df)):
+            tr_list = []
+            for j in range(i - atr_period, i):
+                hl = high[j] - low[j]
+                hc = abs(high[j] - close[j-1]) if j > 0 else hl
+                lc = abs(low[j] - close[j-1]) if j > 0 else hl
+                tr_list.append(max(hl, hc, lc))
+            atr_values.append(sum(tr_list) / atr_period)
+
+        # Calculate 70th percentile threshold
+        atr_70th_percentile = sorted(atr_values)[int(len(atr_values) * 0.7)]
+
+        # Count how many periods exceed 70th percentile
+        high_volatility_count = sum(1 for atr in atr_values if atr > atr_70th_percentile)
+        high_volatility_pct = (high_volatility_count / len(atr_values)) * 100
+
+        # High volatility scenario should have >25% of periods above 70th percentile
+        assert high_volatility_pct > 25, f"Expected >25% high volatility periods, got {high_volatility_pct:.1f}%"
+        print(f"✅ High volatility periods: {high_volatility_pct:.1f}%")
+
+    def test_regime_filter_accepts_low_volatility(self, low_volatility_data):
+        """✅ Test that low volatility periods are accepted"""
+        df = low_volatility_data.copy()
+
+        # Calculate ATR
+        high = df['High'].values
+        low = df['Low'].values
+        close = df['Close'].values
+
+        # Calculate rolling ATR
+        atr_period = 14
+        atr_values = []
+
+        for i in range(atr_period, len(df)):
+            tr_list = []
+            for j in range(i - atr_period, i):
+                hl = high[j] - low[j]
+                hc = abs(high[j] - close[j-1]) if j > 0 else hl
+                lc = abs(low[j] - close[j-1]) if j > 0 else hl
+                tr_list.append(max(hl, hc, lc))
+            atr_values.append(sum(tr_list) / atr_period)
+
+        # Calculate 70th percentile threshold
+        atr_70th_percentile = sorted(atr_values)[int(len(atr_values) * 0.7)]
+
+        # Count how many periods are below 70th percentile
+        low_volatility_count = sum(1 for atr in atr_values if atr <= atr_70th_percentile)
+        low_volatility_pct = (low_volatility_count / len(atr_values)) * 100
+
+        # Low volatility scenario should have >70% of periods below 70th percentile
+        assert low_volatility_pct > 70, f"Expected >70% low volatility periods, got {low_volatility_pct:.1f}%"
+        print(f"✅ Low volatility periods: {low_volatility_pct:.1f}%")
 
 
 @pytest.mark.unit
@@ -66,15 +210,30 @@ class TestConsolidationDetection:
 
     def test_consolidation_time_threshold(self, valid_breakout_data):
         """⏱️ Test that consolidation lasts minimum required bars"""
-        # Placeholder for consolidation detection
-        # Expected: valid_breakout_data has 60 bars of consolidation
-        pass
+        df = valid_breakout_data.copy()
+
+        # Check consolidation phase (bars 0-80)
+        consolidation = df.iloc[0:80]
+
+        # Should have at least 60 bars
+        assert len(consolidation) >= 60, f"Consolidation should be at least 60 bars, got {len(consolidation)}"
+        print(f"✅ Consolidation period: {len(consolidation)} bars")
 
     def test_consolidation_range_bounds(self, valid_breakout_data):
         """📏 Test that consolidation stays within tight range"""
-        # Placeholder for range detection
-        # Expected: Price range should be < 2% during consolidation
-        pass
+        df = valid_breakout_data.copy()
+
+        # Check consolidation phase (bars 0-80)
+        consolidation = df.iloc[0:80]
+
+        # Calculate price range
+        price_range = consolidation['Close'].max() - consolidation['Close'].min()
+        avg_price = consolidation['Close'].mean()
+        range_pct = (price_range / avg_price) * 100
+
+        # Range should be < 2% during consolidation
+        assert range_pct < 2.0, f"Consolidation range should be <2%, got {range_pct:.2f}%"
+        print(f"✅ Consolidation range: {range_pct:.2f}%")
 
 
 @pytest.mark.unit

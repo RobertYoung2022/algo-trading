@@ -147,36 +147,75 @@ class UniversalStrategyTester:
             return 'Unknown'
 
     def _load_and_validate_data(self, file_path):
-        """📊 Load data and validate quality"""
+        """📊 Load data and validate quality with provider-specific format handling"""
         try:
-            # Load CSV data
-            df = pd.read_csv(file_path)
+            # 🔧 Bitstamp-specific handling (CryptoDataDownload format)
+            if 'Bitstamp' in file_path or 'bitstamp' in file_path.lower():
+                # Skip URL header row (first line is "https://www.CryptoDataDownload.com")
+                df = pd.read_csv(file_path, skiprows=1)
 
-            # 🔍 Standardize column names
-            df.columns = df.columns.str.lower()
+                # Reverse to ascending order (Bitstamp is newest-first, we need oldest-first)
+                df = df[::-1].reset_index(drop=True)
 
-            # Map common column name variations
-            column_mapping = {
-                'timestamp': 'timestamp',
-                'time': 'timestamp',
-                'date': 'timestamp',
-                'datetime': 'timestamp',
-                'open': 'Open',
-                'high': 'High',
-                'low': 'Low',
-                'close': 'Close',
-                'volume': 'Volume',
-                'vol': 'Volume'
-            }
+                # Standardize column names to lowercase first
+                df.columns = df.columns.str.lower()
 
-            df = df.rename(columns=column_mapping)
+                # Handle dual volume columns - use USD volume
+                if 'volume usd' in df.columns:
+                    df.rename(columns={'volume usd': 'volume'}, inplace=True)
+                elif 'volume btc' in df.columns and 'volume usd' in df.columns:
+                    df.rename(columns={'volume usd': 'volume'}, inplace=True)
+
+                # Standardize datetime column
+                if 'date' in df.columns:
+                    df.rename(columns={'date': 'timestamp'}, inplace=True)
+
+                # Map to required format
+                column_mapping = {
+                    'timestamp': 'timestamp',
+                    'open': 'Open',
+                    'high': 'High',
+                    'low': 'Low',
+                    'close': 'Close',
+                    'volume': 'Volume'
+                }
+                df = df.rename(columns=column_mapping)
+
+                # Select only OHLCV columns (drop unix, symbol, etc.)
+                required_cols = ['timestamp', 'Open', 'High', 'Low', 'Close']
+                optional_cols = ['Volume']
+                cols_to_keep = [c for c in required_cols + optional_cols if c in df.columns]
+                df = df[cols_to_keep]
+
+            else:
+                # 📊 Standard loading for Coinbase/Yahoo/other sources
+                df = pd.read_csv(file_path)
+
+                # 🔍 Standardize column names
+                df.columns = df.columns.str.lower()
+
+                # Map common column name variations
+                column_mapping = {
+                    'timestamp': 'timestamp',
+                    'time': 'timestamp',
+                    'date': 'timestamp',
+                    'datetime': 'timestamp',
+                    'open': 'Open',
+                    'high': 'High',
+                    'low': 'Low',
+                    'close': 'Close',
+                    'volume': 'Volume',
+                    'vol': 'Volume'
+                }
+
+                df = df.rename(columns=column_mapping)
 
             # Ensure required columns exist
             required_cols = ['Open', 'High', 'Low', 'Close']
             missing_cols = [col for col in required_cols if col not in df.columns]
 
             if missing_cols:
-                print(f"❌ Missing columns in {file_path}: {missing_cols}")
+                print(f"❌ Missing columns in {os.path.basename(file_path)}: {missing_cols}")
                 return None, 0
 
             # 📈 Set index if timestamp exists
@@ -194,11 +233,11 @@ class UniversalStrategyTester:
                     print(f"⚠️ Quality validation failed: {e}")
                     quality_score = 75  # Assume passing if validation fails
 
-            print(f"✅ Loaded {file_path}: {len(df)} bars, quality score: {quality_score}")
+            print(f"✅ Loaded {os.path.basename(file_path)}: {len(df)} bars, quality score: {quality_score}")
             return df, quality_score
 
         except Exception as e:
-            print(f"❌ Failed to load {file_path}: {e}")
+            print(f"❌ Failed to load {os.path.basename(file_path)}: {e}")
             return None, 0
 
     def test_strategy_single_asset(self, strategy_name, data_source):
