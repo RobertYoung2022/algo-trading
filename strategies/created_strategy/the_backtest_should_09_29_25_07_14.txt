@@ -1,0 +1,50 @@
+Trading Strategy Instructions:
+
+1. Strategy Overview:
+The trading strategy is predicated on mean reversion, specifically focusing on the Bollinger Bands and the relative strength index (RSI) as primary indicators for identifying overbought or oversold conditions.
+
+2. Instruments to Trade:
+The backtest should be conducted on a highly liquid financial instrument such as a major Forex pair (e.g., EUR/USD), a major index (e.g., S&P 500 ETF), or a blue-chip stock.
+
+3. Timeframe:
+The primary timeframe for analysis is the daily chart. However, for entry confirmation, the 4-hour chart will be used.
+
+4. Technical Indicators:
+   - Bollinger Bands (20 periods, 2 standard deviations)
+   - Relative Strength Index (RSI) with a period of 14 days
+
+5. Entry Conditions:
+   - For a Long Position (Buy): Enter a trade when the price closes below the lower Bollinger Band and the RSI is below 30. This indicates an oversold condition.
+   - For a Short Position (Sell): Enter a trade when the price closes above the upper Bollinger Band and the RSI is above 70. This indicates an overbought condition.
+
+   - Confirmation: After meeting the above conditions on the daily chart, wait for a reversal candlestick pattern (e.g., hammer, bullish engulfing for long entry, and shooting star, bearish engulfing for short entry) on the 4-hour chart to confirm the trade entry.
+
+6. Exit Conditions:
+   - For a Long Position: Exit the trade when the price reaches the middle Bollinger Band (20-period moving average) or after 5 trading days, whichever comes first.
+   - For a Short Position: Exit the trade when the price reaches the middle Bollinger Band (20-period moving average) or after 5 trading days, whichever comes first.
+   - Stop Loss: Set a stop loss at the recent swing high/low plus a buffer (e.g., 1% of the swing price for stocks, 20 pips for Forex).
+
+7. Position Sizing:
+Determine the position size based on a fixed percentage of the total portfolio at risk per trade (e.g., 1%).
+
+8. Risk Management:
+Set a maximum drawdown limit for the entire portfolio (e.g., 20%). If the portfolio's value drops by this percentage from the peak, halt trading and re-evaluate the strategy.
+
+9. Additional Rules:
+   - Do not enter a new trade if there is already an open position for the same instrument.
+   - Do not enter trades before major economic announcements that can increase volatility.
+
+10. Backtesting Parameters:
+   - Backtest the strategy over at least five years of historical price data to ensure robustness across different market conditions.
+   - Record the trades, including entry price, exit price, position size, stop loss level, and the trade outcome (profit/loss).
+   - Calculate performance metrics such as the total return, average return per trade, win rate, maximum drawdown, and Sharpe ratio.
+
+Coding Instructions:
+1. Pull historical daily and 4-hour chart price data for the selected instrument.
+2. Implement the Bollinger Bands and RSI calculations using the specified parameters.
+3. Code the entry conditions for both long and short setups, including the confirmation step on the 4-hour chart.
+4. Code the exit conditions including the logic for stop loss and taking profit.
+5. Implement the position sizing and risk management rules.
+6. Perform the backtest across the historical dataset and log all trades.
+7. Calculate and report performance metrics after backtesting is complete.
+8. Ensure that the backtesting framework can generate a detailed report and equity curve for visual analysis.

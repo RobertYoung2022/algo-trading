@@ -1,0 +1,52 @@
+Trading Strategy: Mean Reversion with Bollinger Bands
+
+Objective:
+Develop a mean reversion trading strategy that uses Bollinger Bands to identify entry and exit points for trades. The strategy should be backtested on daily price data for a specified stock or index.
+
+Entry Criteria:
+1. Calculate the 20-day Simple Moving Average (SMA) of the closing prices.
+2. Calculate the upper and lower Bollinger Bands with a 2 standard deviation offset from the SMA.
+3. A long entry signal is generated when the daily closing price crosses below the lower Bollinger Band, suggesting an oversold condition.
+4. A short entry signal is generated when the daily closing price crosses above the upper Bollinger Band, suggesting an overbought condition.
+
+Exit Criteria:
+1. For long positions, exit when the price touches or crosses back above the SMA.
+2. For short positions, exit when the price touches or crosses back below the SMA.
+3. Additionally, implement a stop-loss at 3% below the entry price for long trades and 3% above the entry price for short trades.
+4. Implement a time-based exit where positions are closed after 10 trading days if none of the other exit criteria have been met.
+
+Position Sizing:
+1. Risk 1% of the total capital on each trade.
+2. Determine the number of shares to trade by dividing the risk amount by the distance from the entry price to the stop-loss level.
+
+Risk Management:
+1. The maximum number of concurrent trades should be limited to 5 to diversify risk.
+2. If a trade is closed based on the stop-loss criteria, do not open a new trade on the same stock until 5 trading days have passed to avoid catching a "falling knife".
+
+Backtest Specifications:
+1. Backtest period: 5 years of historical daily price data.
+2. Starting capital: $100,000.
+3. Transaction costs: Assume $0.01 per share for commission.
+4. Slippage: Assume a slippage of 0.05% of the execution price.
+5. Data points: Record the entry date, entry price, exit date, exit price, position size, and P&L for each trade.
+
+Performance Metrics:
+1. Calculate the Net Profit/Loss.
+2. Calculate the Percentage of Winning Trades.
+3. Calculate the Average Gain for Winning Trades and Average Loss for Losing Trades.
+4. Calculate the Maximum Drawdown.
+5. Calculate the Annualized Return and the Sharpe Ratio.
+
+Backtesting Implementation Steps for the Other AI:
+1. Import historical daily price data for the specified stock/index for the backtest period.
+2. Calculate the SMA, upper band, and lower band for each trading day.
+3. Implement the trading logic for entry and exit conditions, including the position-sizing and risk management rules.
+4. Execute trades according to the strategy rules and record trade details.
+5. At the end of the backtest period, calculate the performance metrics.
+6. Present the results including a chart of the equity curve over time.
+
+Important Notes:
+- All entry signals should occur on the close of the trading day with trades executed at the next day's open price.
+- Adjust the stop-loss level for each new day based on the closing price.
+- Recapitalize profits and losses daily for compounding effects.
+- Report any deviations from expected results or potential issues encountered during backtesting.

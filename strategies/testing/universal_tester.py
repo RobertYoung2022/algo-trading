@@ -88,7 +88,7 @@ class UniversalStrategyTester:
 
         for root, dirs, files in os.walk(self.data_directory):
             for file in files:
-                if file.endswith('.csv') and 'historical' in file.lower():
+                if file.endswith('.csv'):
                     file_path = os.path.join(root, file)
 
                     # 📊 Extract asset info from filename/path
@@ -141,6 +141,8 @@ class UniversalStrategyTester:
             return 'CoinGecko'
         elif 'cryptocompare' in file_path.lower():
             return 'CryptoCompare'
+        elif 'bitstamp' in file_path.lower():
+            return 'Bitstamp'
         else:
             return 'Unknown'
 

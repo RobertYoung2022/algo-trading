@@ -153,14 +153,14 @@ class RSIMeanReversionStrategy(Strategy):
                         # Conservative stop loss for mean reversion (price typically bounces)
                         stop_loss_price = current_price * 0.95  # 5% stop loss
 
-                        position_size = calculate_position_size(
+                        position_result = calculate_position_size(
                             account_balance=self.equity,
                             entry_price=current_price,
-                            stop_loss=stop_loss_price,
+                            stop_loss_price=stop_loss_price,
                             risk_pct=min(adjusted_risk, 3.0)  # Cap at 3%
                         )
 
-                        size_fraction = min(position_size / self.equity, 0.9)  # Max 90% equity
+                        size_fraction = min(position_result['position_value'] / self.equity, 0.9)  # Max 90% equity
 
                     except Exception as e:
                         print(f"⚠️ Position sizing error: {e}")
@@ -200,14 +200,14 @@ class RSIMeanReversionStrategy(Strategy):
 
                         stop_loss_price = current_price * 1.05  # 5% stop for short
 
-                        position_size = calculate_position_size(
+                        position_result = calculate_position_size(
                             account_balance=self.equity,
                             entry_price=current_price,
-                            stop_loss=stop_loss_price,
+                            stop_loss_price=stop_loss_price,
                             risk_pct=min(adjusted_risk, 3.0)
                         )
 
-                        size_fraction = min(position_size / self.equity, 0.9)
+                        size_fraction = min(position_result['position_value'] / self.equity, 0.9)
 
                     except Exception as e:
                         size_fraction = 0.015

@@ -1,0 +1,51 @@
+Trading Strategy Instructions:
+
+Objective: Develop a trading strategy based on moving average crossovers.
+
+Strategy Name: Moving Average Crossover Strategy
+
+Financial Instruments: This strategy applies to any liquid and frequently traded financial instrument (e.g., stocks, ETFs, forex).
+
+Time Frame: Daily charts
+
+Indicators:
+1. Short-term Moving Average (SMA1): 50-day simple moving average
+2. Long-term Moving Average (SMA2): 200-day simple moving average
+
+Entry Conditions:
+1. Buy Signal: A buy signal occurs when the short-term moving average (SMA1) crosses above the long-term moving average (SMA2). This is known as a "Golden Cross."
+   - The close of the crossover day is the reference point.
+   - Execute a buy order at the opening price on the next trading day following the crossover.
+   
+2. Sell Signal: A sell signal occurs when the short-term moving average (SMA1) crosses below the long-term moving average (SMA2). This is known as a "Death Cross."
+   - The close of the crossover day is the reference point.
+   - Execute a sell order at the opening price on the next trading day following the crossover.
+
+Position Sizing:
+- Risk 1% of the trading capital per trade.
+- Adjust the position size accordingly based on the trading capital and the opening price at which the trade is executed.
+
+Stop Loss and Take Profit:
+- No stop loss or take profit is set for this strategy. Positions are closed based on the opposite crossover signal.
+
+Exit Conditions:
+1. Close Buy Position: When a sell signal occurs (SMA1 crosses below SMA2), close the buy position at the opening price on the next trading day.
+2. Close Sell Position: When a buy signal occurs (SMA1 crosses above SMA2), close the sell position at the opening price on the next trading day.
+
+Risk Management:
+- If there is already an open position in the direction of the trade signal, no new trades should be executed.
+- If the capital drops below a predefined threshold, say 20% of initial capital, halt trading.
+- Do not take additional trades if there are insufficient funds to risk 1% of trading capital.
+
+Backtest Parameters:
+- Backtest period: Minimum of 5 years historical data.
+- Include trading fees and slippage in the backtest.
+- Report metrics: Total return, annualized return, maximum drawdown, Sharpe ratio, and number of trades.
+
+Coding the Backtest:
+- Use historical daily opening and closing prices for backtesting.
+- Calculate daily 50-day and 200-day simple moving averages.
+- Implement logic to detect crossovers and execute trades accordingly.
+- Ensure trades occur at the first opening price following the signal.
+- Maintain a log of all trades, including entry and exit points, trade duration, and profit or loss.
+- Calculate the required backtest metrics after completing the simulation.

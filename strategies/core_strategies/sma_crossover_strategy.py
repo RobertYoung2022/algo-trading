@@ -139,14 +139,14 @@ class SMAStrategy(Strategy):
                 if TRADING_FUNCTIONS_AVAILABLE:
                     try:
                         stop_loss_price = current_price * (1 - self.stop_loss_pct / 100)
-                        position_size = calculate_position_size(
+                        position_result = calculate_position_size(
                             account_balance=self.equity,
                             entry_price=current_price,
-                            stop_loss=stop_loss_price,
+                            stop_loss_price=stop_loss_price,
                             risk_pct=self.risk_pct
                         )
                         # Convert to fraction of equity
-                        size_fraction = min(position_size / self.equity, 0.95)  # Max 95% of equity
+                        size_fraction = min(position_result['position_value'] / self.equity, 0.95)  # Max 95% of equity
                     except Exception as e:
                         print(f"⚠️ Position sizing error: {e}")
                         size_fraction = 0.02  # Fallback to 2% of equity

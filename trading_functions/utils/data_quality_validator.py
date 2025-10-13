@@ -211,11 +211,18 @@ class DataQualityValidator:
     def _load_data_safely(self, file_path: Path, result: ValidationResult) -> Optional[pd.DataFrame]:
         """📥 Safely load CSV data with error handling"""
         try:
+            # 🔍 Check for CryptoDataDownload format (skip header lines)
+            skip_rows = 0
+            with open(file_path, 'r') as f:
+                first_line = f.readline().strip()
+                if first_line.startswith('https://www.CryptoDataDownload.com'):
+                    skip_rows = 1  # Skip only the URL line, keep the column headers
+            
             # 🔍 Detect date column and format
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, skiprows=skip_rows)
 
             # 📅 Common date column names to try
-            date_columns = ['Date', 'date', 'timestamp', 'Timestamp', 'datetime', 'time']
+            date_columns = ['Date', 'date', 'timestamp', 'Timestamp', 'datetime', 'time', 'unix']
             date_col = None
 
             for col in date_columns:
@@ -223,27 +230,50 @@ class DataQualityValidator:
                     date_col = col
                     break
 
+            # 🔍 If no standard date column found, check if first column looks like a date
+            if date_col is None and len(df.columns) > 0:
+                first_col = df.columns[0]
+                # Check if first column contains date-like data
+                try:
+                    sample_values = df[first_col].head(3).astype(str)
+                    if any('202' in str(val) for val in sample_values) or any('unix' in first_col.lower()):
+                        date_col = first_col
+                        result.add_info(f"Using first column as date column: {first_col}")
+                except:
+                    # If first column doesn't work, try second column
+                    if len(df.columns) > 1:
+                        second_col = df.columns[1]
+                        if 'unix' in second_col.lower() or 'date' in second_col.lower():
+                            date_col = second_col
+                            result.add_info(f"Using second column as date column: {second_col}")
+
             if date_col is None:
-                result.add_critical("No recognized date column found (tried: Date, timestamp, datetime)")
+                result.add_critical("No recognized date column found (tried: Date, timestamp, datetime, unix)")
                 return None
 
             # 🕒 Parse dates and set as index
-            df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+            if date_col == 'unix' or 'unix' in date_col.lower():
+                # Handle unix timestamp
+                df[date_col] = pd.to_datetime(df[date_col], unit='s', errors='coerce')
+            else:
+                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+            
             df = df.set_index(date_col).sort_index()
 
             # ✅ Standardize column names to handle both lowercase and uppercase
             column_mapping = {}
             for col in df.columns:
                 col_lower = col.lower()
-                if col_lower == 'open':
+                if col_lower in ['open', 'o']:
                     column_mapping[col] = 'Open'
-                elif col_lower == 'high':
+                elif col_lower in ['high', 'h']:
                     column_mapping[col] = 'High'
-                elif col_lower == 'low':
+                elif col_lower in ['low', 'l']:
                     column_mapping[col] = 'Low'
-                elif col_lower == 'close':
+                elif col_lower in ['close', 'c']:
                     column_mapping[col] = 'Close'
-                elif col_lower == 'volume':
+                elif 'volume' in col_lower and 'Volume' not in column_mapping.values():
+                    # Only map the first volume column found
                     column_mapping[col] = 'Volume'
 
             # Apply column mapping
@@ -276,6 +306,8 @@ class DataQualityValidator:
 
         # 🔍 Common filename patterns to match
         patterns = [
+            # Bitstamp_BTCUSD_d.csv or Bitstamp_BTCUSD_1h.csv
+            r'Bitstamp_([A-Z]+USD[TC]?)_(\d*[hdm]?)\.csv',
             # BTCUSD-1d-1000wks-data.csv
             r'([A-Z]+USD?)-(\d+[hdm])-(\d+(?:yr|wks?|mo|days?))',
             # BTCUSD-10yr-yahoo-data.csv
@@ -446,7 +478,8 @@ class DataQualityValidator:
             return
 
         # 🎯 Determine minimum expected data points based on timeframe
-        timeframe = filename_metadata.get('timeframe', '').lower()
+        timeframe = filename_metadata.get('timeframe') or ''
+        timeframe = timeframe.lower()
         if '1d' in timeframe or 'day' in timeframe:
             min_points = self.config['min_data_points_1d']
         elif '1h' in timeframe or 'hour' in timeframe:
@@ -532,6 +565,212 @@ class DataQualityValidator:
             return num
         else:
             return None
+
+    def validate_crypto_data_quality(self, file_path: Union[str, Path]) -> ValidationResult:
+        """
+        🔍 Specialized validation for cryptocurrency historical data
+        
+        Args:
+            file_path: Path to crypto data file
+            
+        Returns:
+            ValidationResult with crypto-specific analysis
+        """
+        result = ValidationResult()
+        file_path = Path(file_path)
+        
+        try:
+            # Load data with crypto-specific handling
+            df = self._load_data_safely(file_path, result)
+            if df is None:
+                return result
+                
+            # Extract crypto metadata
+            crypto_metadata = self._parse_crypto_filename(file_path.name)
+            result.metadata['crypto_info'] = crypto_metadata
+            
+            # Validate crypto-specific requirements
+            self._validate_crypto_ohlc_relationships(df, result)
+            self._validate_crypto_temporal_consistency(df, result, crypto_metadata)
+            self._validate_crypto_price_ranges(df, result, crypto_metadata)
+            self._validate_stale_data_removal(df, result)
+            
+            # Calculate crypto-specific quality score
+            result.quality_score = self._calculate_crypto_quality_score(df, result)
+            
+        except Exception as e:
+            result.add_critical(f"Crypto validation failed: {str(e)}")
+            logger.error(f"🚨 Crypto validation error for {file_path}: {e}")
+            
+        return result
+    
+    def _parse_crypto_filename(self, filename: str) -> Dict[str, Any]:
+        """🏷️ Parse crypto-specific filename patterns"""
+        metadata = {
+            'symbol': None,
+            'timeframe': None,
+            'exchange': None,
+            'quote_currency': None,
+            'original_filename': filename
+        }
+        
+        # Extract symbol and timeframe from crypto filenames
+        if 'BTC' in filename:
+            metadata['symbol'] = 'BTC'
+        elif 'ETH' in filename:
+            metadata['symbol'] = 'ETH'
+        elif 'XRP' in filename:
+            metadata['symbol'] = 'XRP'
+        elif 'LINK' in filename:
+            metadata['symbol'] = 'LINK'
+        elif 'HBAR' in filename:
+            metadata['symbol'] = 'HBAR'
+            
+        # Extract timeframe
+        if '_d.csv' in filename:
+            metadata['timeframe'] = 'daily'
+        elif '_1h.csv' in filename:
+            metadata['timeframe'] = 'hourly'
+        elif '_minute.csv' in filename:
+            metadata['timeframe'] = 'minute'
+            
+        # Extract exchange
+        if 'Bitstamp' in filename:
+            metadata['exchange'] = 'Bitstamp'
+            
+        # Extract quote currency
+        if 'USDC' in filename:
+            metadata['quote_currency'] = 'USDC'
+        elif 'USDT' in filename:
+            metadata['quote_currency'] = 'USDT'
+        elif 'USD' in filename:
+            metadata['quote_currency'] = 'USD'
+            
+        return metadata
+    
+    def _validate_crypto_ohlc_relationships(self, df: pd.DataFrame, result: ValidationResult) -> None:
+        """📊 Enhanced OHLC validation for crypto data"""
+        if df.empty:
+            return
+            
+        total_records = len(df)
+        
+        # Check for identical OHLC (stale data)
+        identical_ohlc = (df['Open'] == df['High']) & (df['High'] == df['Low']) & (df['Low'] == df['Close'])
+        identical_count = identical_ohlc.sum()
+        
+        if identical_count > 0:
+            stale_pct = (identical_count / total_records) * 100
+            if stale_pct > 10:
+                result.add_warning(f"High stale data rate: {identical_count} records ({stale_pct:.1f}%) with identical OHLC")
+            else:
+                result.add_info(f"Found {identical_count} stale records ({stale_pct:.1f}%) - consider preprocessing")
+        
+        # Standard OHLC validation
+        high_invalid = df['High'] < df[['Open', 'Close']].max(axis=1)
+        low_invalid = df['Low'] > df[['Open', 'Close']].min(axis=1)
+        
+        if high_invalid.any():
+            result.add_critical(f"Found {high_invalid.sum()} records where high < max(open, close)")
+        if low_invalid.any():
+            result.add_critical(f"Found {low_invalid.sum()} records where low > min(open, close)")
+    
+    def _validate_crypto_temporal_consistency(self, df: pd.DataFrame, result: ValidationResult, 
+                                            crypto_metadata: Dict) -> None:
+        """⏰ Validate temporal consistency for crypto data"""
+        if len(df) < 2:
+            return
+            
+        timeframe = crypto_metadata.get('timeframe', 'unknown')
+        
+        # Calculate expected intervals
+        interval_map = {
+            'minute': 60,
+            'hourly': 3600,
+            'daily': 86400
+        }
+        
+        expected_interval = interval_map.get(timeframe, 3600)
+        
+        # Calculate actual intervals
+        intervals = df.index.to_series().diff().dt.total_seconds().dropna()
+        
+        # Find large gaps
+        large_gaps = intervals[intervals > expected_interval * 1.5]
+        very_large_gaps = intervals[intervals > expected_interval * 24]
+        
+        if len(large_gaps) > 0:
+            gap_pct = (len(large_gaps) / len(intervals)) * 100
+            result.add_warning(f"Found {len(large_gaps)} temporal gaps ({gap_pct:.1f}%)")
+            
+        if len(very_large_gaps) > 0:
+            result.add_warning(f"Found {len(very_large_gaps)} very large gaps (>24x expected interval)")
+    
+    def _validate_crypto_price_ranges(self, df: pd.DataFrame, result: ValidationResult, 
+                                    crypto_metadata: Dict) -> None:
+        """💰 Validate crypto price ranges"""
+        symbol = crypto_metadata.get('symbol', '')
+        
+        # Reasonable price ranges for different cryptocurrencies
+        price_ranges = {
+            'BTC': {'min': 1000, 'max': 200000},
+            'ETH': {'min': 50, 'max': 10000},
+            'XRP': {'min': 0.1, 'max': 10},
+            'LINK': {'min': 1, 'max': 100},
+            'HBAR': {'min': 0.01, 'max': 2}
+        }
+        
+        if symbol in price_ranges:
+            price_range = price_ranges[symbol]
+            close_prices = df['Close']
+            out_of_range = close_prices[(close_prices < price_range['min']) | (close_prices > price_range['max'])]
+            
+            if len(out_of_range) > 0:
+                # Check if these are historical prices (legitimate)
+                min_price = close_prices.min()
+                max_price = close_prices.max()
+                
+                if min_price < price_range['min']:
+                    result.add_info(f"Historical prices below current range: ${min_price:.2f} (legitimate for historical data)")
+                if max_price > price_range['max']:
+                    result.add_warning(f"Prices above expected range: ${max_price:.2f}")
+    
+    def _validate_stale_data_removal(self, df: pd.DataFrame, result: ValidationResult) -> None:
+        """🧹 Check for stale data that should be removed"""
+        if df.empty:
+            return
+            
+        # Check for consecutive identical records (potential stale data)
+        identical_consecutive = (
+            (df['Open'] == df['Open'].shift(1)) &
+            (df['High'] == df['High'].shift(1)) &
+            (df['Low'] == df['Low'].shift(1)) &
+            (df['Close'] == df['Close'].shift(1))
+        )
+        
+        consecutive_count = identical_consecutive.sum()
+        if consecutive_count > 0:
+            consecutive_pct = (consecutive_count / len(df)) * 100
+            result.add_warning(f"Found {consecutive_count} consecutive identical records ({consecutive_pct:.1f}%) - consider data preprocessing")
+    
+    def _calculate_crypto_quality_score(self, df: pd.DataFrame, result: ValidationResult) -> float:
+        """📊 Calculate crypto-specific quality score"""
+        score = 100.0
+        
+        # Penalty for critical issues
+        score -= len(result.critical_issues) * 25
+        
+        # Penalty for warnings
+        score -= len(result.warnings) * 8
+        
+        # Penalty for info items (minor issues)
+        score -= len(result.info) * 2
+        
+        # Bonus for clean data
+        if not result.critical_issues and not result.warnings:
+            score = min(100.0, score + 5)
+            
+        return max(0.0, min(100.0, score))
 
     def calculate_quality_score(self, df: pd.DataFrame, source: str = 'unknown') -> float:
         """
@@ -713,6 +952,44 @@ class DataQualityValidator:
             result.add_info(f"High quality score ({quality_score:.1f}/100) - excellent for backtesting")
 
         return result
+
+def validate_crypto_historical_data(data_directory: str = "dataset_files/crypto_hist_data") -> Dict[str, ValidationResult]:
+    """
+    🔍 Comprehensive validation of all crypto historical data files
+    
+    Args:
+        data_directory: Path to crypto historical data directory
+        
+    Returns:
+        Dictionary mapping file paths to validation results
+    """
+    validator = DataQualityValidator()
+    results = {}
+    
+    # Get all CSV files in the directory
+    data_path = Path(data_directory)
+    if not data_path.exists():
+        logger.error(f"Data directory not found: {data_directory}")
+        return {}
+    
+    csv_files = list(data_path.glob("*.csv"))
+    logger.info(f"🔍 Validating {len(csv_files)} crypto data files from {data_directory}")
+    
+    for file_path in csv_files:
+        try:
+            result = validator.validate_crypto_data_quality(file_path)
+            results[str(file_path)] = result
+            
+            status = "✅" if result.is_valid else "❌"
+            logger.info(f"{status} {file_path.name}: {result.quality_score:.1f}/100")
+            
+        except Exception as e:
+            error_result = ValidationResult()
+            error_result.add_critical(f"Validation failed: {str(e)}")
+            results[str(file_path)] = error_result
+            logger.error(f"❌ {file_path.name}: Validation failed - {e}")
+    
+    return results
 
 def validate_data_source_quality(source_name: str, data_files: List[str]) -> Dict[str, ValidationResult]:
     """
