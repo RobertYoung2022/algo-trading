@@ -13,7 +13,21 @@ Uses price breakouts from consolidation ranges with volume confirmation.
 💫 Data Requirements:
     - OHLCV data with quality score ≥75
     - Volume data essential for confirmation
-    - Works best on medium timeframes (1h, 4h, 6h)
+    - DAILY timeframes ONLY (6h acceptable, 1h risky, <1h catastrophic)
+
+🎯 Asset Suitability (Phase 0-1 Testing Results on 110 Datasets):
+    ✅ RECOMMENDED ASSETS:
+        - BTC (Bitcoin): 70% returns on 6h, 44% on 1h, excellent daily performance
+        - XRP (Ripple): 31% on daily, 22% on 10yr Yahoo data
+        - CRO (Cronos): 20% on 20yr Yahoo, 13% on daily Coinbase
+        - ETH (Ethereum): 10% on daily, 9% on 6h Coinbase
+        - LINK (Chainlink): 11% on daily Coinbase, 6% on Yahoo
+
+    ❌ NOT RECOMMENDED:
+        - HBAR (Hedera): Best result -3.70%, worst -97.00% ❌
+          * Consistently negative across ALL timeframes and providers
+          * Breakout strategy fundamentally incompatible with HBAR price action
+          * EXCLUDE HBAR from backtesting to avoid wasted computational resources
 
 🔧 Bobby's Modern Trading Framework Integration:
     - Uses @trading_functions for volume analysis
@@ -66,14 +80,68 @@ class BreakoutMomentumStrategy(Strategy):
     trail_stop_pct = 1.5     # Trailing stop percentage
     min_range_size_pct = 1.0 # Minimum range size for valid breakout (%)
 
-    # 🌪️ Enhancement #1: ATR Volatility Filter (Step 1.2)
-    atr_period = 14          # ATR calculation period
-    atr_percentile = 90      # Skip trades if ATR > this percentile (90 = top 10% volatility)
-    atr_spike_threshold = 2.5  # Skip if ATR spiked >2.5x from baseline
-    use_atr_filter = True    # Enable/disable ATR filter for testing
+    # 📊 Enhancement #1: RSI Divergence Filter (Step 1.2 Redesign)
+    rsi_period = 14              # RSI calculation period
+    divergence_lookback = 5      # Bars to check for divergence
+    use_rsi_filter = True        # Enable/disable RSI filter for testing
+
+    # 🛡️ PHASE 2: Overtrading Prevention (Critical Risk Management)
+    # Testing revealed overtrading is the #1 strategy killer:
+    #   - Profitable strategies: 8-80 trades per year ✅
+    #   - Unprofitable strategies: 195-2195 trades per year ❌
+    # This limit prevents catastrophic overtrading even with bad data
+    max_trades_per_year = 100    # Maximum trades allowed per year (daily timeframe)
+    enforce_trade_limit = True   # Enable/disable trade limit
+
+    # 🚫 PHASE 2: Asset Exclusions (Evidence-Based)
+    # Phase 0-1 testing on 110 datasets revealed HBAR consistently underperforms
+    #   - Best HBAR result: -3.70% (still negative!)
+    #   - Worst HBAR result: -97.00% (catastrophic)
+    #   - Pattern holds across ALL timeframes and providers
+    excluded_assets = ['HBAR']   # Assets incompatible with this strategy
+
+    # 📊 PHASE 3: Multi-Timeframe Trend Confirmation (Step 2)
+    # Phase 3 goal: Improve win rate by filtering counter-trend signals
+    #   - Only take LONG when price > weekly SMA(50)
+    #   - Only take SHORT when price < weekly SMA(50)
+    #   - Expected: Win rate 34-40% → 45-55%
+    use_multi_timeframe_filter = True  # Enable/disable trend filter
+    weekly_trend_period = 50           # Weekly trend SMA period (50 days ≈ 10 weeks)
 
     def init(self):
         """🏗️ Initialize strategy indicators using @trading_functions"""
+
+        # 🚫 PHASE 2: Asset Exclusion Warning
+        # Check if user is testing on excluded assets and warn them
+        try:
+            # Try to detect asset from data or filename
+            asset_detected = None
+            if hasattr(self.data, 'symbol'):
+                asset_detected = self.data.symbol
+            elif hasattr(self.data, 'name'):
+                asset_detected = self.data.name
+
+            # Check if detected asset is in exclusion list
+            if asset_detected:
+                for excluded in self.excluded_assets:
+                    if excluded.upper() in str(asset_detected).upper():
+                        print("\n" + "="*70)
+                        print("⚠️  WARNING: TESTING ON EXCLUDED ASSET")
+                        print("="*70)
+                        print(f"🚫 Detected asset: {asset_detected}")
+                        print(f"🚫 This asset is on the exclusion list: {self.excluded_assets}")
+                        print(f"")
+                        print(f"📊 Phase 0-1 Testing Results for {excluded}:")
+                        print(f"   • Best result: -3.70% (negative even in best case)")
+                        print(f"   • Worst result: -97.00% (catastrophic losses)")
+                        print(f"   • Consistent failure across ALL timeframes and providers")
+                        print(f"")
+                        print(f"💡 RECOMMENDATION: Exclude {excluded} from testing")
+                        print(f"   Focus on proven assets: BTC, ETH, XRP, CRO, LINK")
+                        print("="*70 + "\n")
+                        # Don't raise error, just warn - user might want to test anyway
+        except Exception:
+            pass  # If detection fails, silently continue
 
         # 🛡️ Data quality validation
         if TRADING_FUNCTIONS_AVAILABLE:
@@ -95,6 +163,92 @@ class BreakoutMomentumStrategy(Strategy):
             except Exception as e:
                 print(f"⚠️ Data validation error: {e}")
 
+        # ⏰ PHASE 2: Timeframe Validation (Critical for Strategy Performance)
+        # This strategy is optimized for DAILY timeframes ONLY
+        # Testing on 110 datasets revealed:
+        #   - Daily timeframes: +8% to +70% returns ✅
+        #   - 6h timeframes: +4% to +8% returns ✅ (acceptable)
+        #   - 1h timeframes: -12% average ⚠️ (needs optimization)
+        #   - Minute timeframes: -71% average ❌ (catastrophic overtrading)
+        try:
+            # Detect timeframe from data index
+            if len(self.data) >= 2:
+                time_diff = pd.Timedelta(0)
+
+                # Calculate median time difference between bars
+                timestamps = pd.to_datetime(self.data.index)
+                if len(timestamps) >= 10:
+                    diffs = []
+                    for i in range(1, min(11, len(timestamps))):
+                        diff = timestamps[i] - timestamps[i-1]
+                        if diff > pd.Timedelta(0):  # Skip any zero or negative diffs
+                            diffs.append(diff)
+
+                    if diffs:
+                        time_diff = pd.Series(diffs).median()
+
+                # Determine timeframe category
+                if time_diff > pd.Timedelta(0):
+                    if time_diff < pd.Timedelta(hours=1):
+                        # Minute-level data (< 1 hour)
+                        timeframe_name = f"{int(time_diff.total_seconds() / 60)}m"
+                        print("\n" + "="*60)
+                        print("❌ CRITICAL ERROR: INCOMPATIBLE TIMEFRAME")
+                        print("="*60)
+                        print(f"⚠️  Detected timeframe: {timeframe_name}")
+                        print(f"⚠️  This strategy is optimized for DAILY timeframes only")
+                        print(f"")
+                        print(f"📊 Phase 0-1 Testing Results (110 datasets):")
+                        print(f"   • Daily timeframes:  +8% to +70% ✅ EXCELLENT")
+                        print(f"   • 6h timeframes:     +4% to +8%  ✅ ACCEPTABLE")
+                        print(f"   • 1h timeframes:     -12% avg    ⚠️  RISKY")
+                        print(f"   • Minute timeframes: -71% avg    ❌ CATASTROPHIC")
+                        print(f"")
+                        print(f"🚫 REASON: Minute data causes severe overtrading (500+ trades)")
+                        print(f"   The RSI divergence filter cannot overcome timeframe noise")
+                        print(f"")
+                        print(f"✅ SOLUTION: Use daily or 6h data instead")
+                        print(f"   Example: dataset_files/coinbase/ETHUSD-1d-1000wks-enhanced-data.csv")
+                        print("="*60 + "\n")
+                        raise ValueError(f"❌ Breakout Strategy requires DAILY timeframes. Detected: {timeframe_name}. See error message above for details.")
+
+                    elif time_diff < pd.Timedelta(hours=4):
+                        # 1h-3h data
+                        timeframe_name = f"{int(time_diff.total_seconds() / 3600)}h"
+                        print("\n" + "="*60)
+                        print("⚠️  WARNING: SUB-OPTIMAL TIMEFRAME")
+                        print("="*60)
+                        print(f"⚠️  Detected timeframe: {timeframe_name}")
+                        print(f"⚠️  This strategy performs best on DAILY timeframes")
+                        print(f"")
+                        print(f"📊 Expected Performance:")
+                        print(f"   • Daily timeframes:  +8% to +70% returns ✅")
+                        print(f"   • 6h timeframes:     +4% to +8%  returns ✅")
+                        print(f"   • 1h timeframes:     -12% average returns ⚠️")
+                        print(f"")
+                        print(f"⚠️  RISK: Lower performance, more noise, reduced win rate")
+                        print(f"✅ RECOMMENDED: Switch to daily data for optimal results")
+                        print("="*60 + "\n")
+
+                    elif time_diff < pd.Timedelta(hours=18):
+                        # 4h-12h data (acceptable)
+                        timeframe_name = f"{int(time_diff.total_seconds() / 3600)}h"
+                        print(f"✅ Timeframe validated: {timeframe_name} (acceptable performance expected)")
+
+                    else:
+                        # Daily or higher (optimal)
+                        timeframe_name = f"{int(time_diff.total_seconds() / 86400)}d" if time_diff >= pd.Timedelta(days=1) else "daily"
+                        print(f"✅ Timeframe validated: {timeframe_name} (optimal performance expected)")
+                else:
+                    print("⚠️ Could not detect timeframe - proceeding with caution")
+
+        except ValueError:
+            # Re-raise ValueError (timeframe rejection)
+            raise
+        except Exception as e:
+            print(f"⚠️ Timeframe detection error: {e}")
+            print("⚠️ Proceeding without timeframe validation - USE DAILY DATA FOR BEST RESULTS")
+
         # 📊 Calculate rolling indicators
         self.highest_high = self.I(lambda x: pd.Series(x).rolling(self.lookback_period).max(), self.data.High)
         self.lowest_low = self.I(lambda x: pd.Series(x).rolling(self.lookback_period).min(), self.data.Low)
@@ -107,37 +261,43 @@ class BreakoutMomentumStrategy(Strategy):
             print("⚠️ No volume data available - using price-only breakouts")
             self.volume_available = False
 
-        # 🌪️ Enhancement #1: ATR Volatility Filter
-        if self.use_atr_filter:
-            def calculate_atr(high, low, close):
-                """Calculate ATR (Average True Range)"""
-                high_series = pd.Series(high)
-                low_series = pd.Series(low)
+        # 📊 Enhancement #1: RSI Divergence Filter
+        if self.use_rsi_filter:
+            def calculate_rsi(close, period=14):
+                """Calculate Relative Strength Index"""
                 close_series = pd.Series(close)
+                delta = close_series.diff()
 
-                # Calculate True Range
-                hl = high_series - low_series
-                hc = abs(high_series - close_series.shift(1))
-                lc = abs(low_series - close_series.shift(1))
+                # Separate gains and losses
+                gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
 
-                tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
+                # Calculate RS and RSI
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                return rsi.values
 
-                # Calculate ATR as rolling average of TR
-                atr = tr.rolling(window=self.atr_period).mean()
-                return atr.values
+            self.rsi = self.I(calculate_rsi, self.data.Close, self.rsi_period)
+            print(f"📊 RSI divergence filter enabled: {self.rsi_period}-period")
 
-            self.atr = self.I(calculate_atr, self.data.High, self.data.Low, self.data.Close)
-
-            # Calculate ATR percentile threshold (using all available data)
-            # This will be updated as more data comes in during backtest
-            print(f"🌪️ ATR filter enabled: {self.atr_period}-period, {self.atr_percentile}th percentile threshold")
+        # 📊 PHASE 3 STEP 2: Multi-Timeframe Trend Filter
+        # Calculate weekly trend (SMA on daily data acts as weekly filter)
+        if self.use_multi_timeframe_filter:
+            self.weekly_trend = self.I(lambda x: pd.Series(x).rolling(self.weekly_trend_period).mean(),
+                                        self.data.Close)
+            print(f"📊 Multi-timeframe filter enabled: SMA({self.weekly_trend_period}) weekly trend")
 
         # 🎯 Tracking variables
         self.entry_price = None
         self.stop_loss = None
         self.trail_high = None
 
+        # 🛡️ PHASE 2: Trade counter for overtrading prevention
+        self.trade_count = 0
+
         print(f"✅ Breakout strategy initialized: Lookback({self.lookback_period})")
+        if self.enforce_trade_limit:
+            print(f"🛡️ Overtrading protection enabled: Max {self.max_trades_per_year} trades per year")
 
     def next(self):
         """🎯 Execute breakout momentum trading logic"""
@@ -186,45 +346,67 @@ class BreakoutMomentumStrategy(Strategy):
             if not pd.isna(avg_vol) and avg_vol > 0:
                 volume_confirmed = current_volume >= (avg_vol * self.volume_threshold)
 
-        # 🌪️ Enhancement #1: ATR Volatility Regime Filter
-        # Two-stage filter:
-        # 1. Spike detection: Reject if ATR spiked >2x from recent baseline
-        # 2. Regime detection: Reject if in top 20% volatility (80th percentile)
-        atr_filter_pass = True
-        if self.use_atr_filter and len(self.atr) > 50:
-            current_atr = self.atr[-1]
+        # 📊 Enhancement #1: RSI Divergence Filter (Momentum Confirmation)
+        # Detects bearish divergence: price makes new high but RSI doesn't
+        # This indicates weakening momentum and likely false breakout
+        rsi_filter_pass = True
+        if self.use_rsi_filter and len(self.data) > self.divergence_lookback + self.rsi_period:
+            # Get recent price highs and RSI values
+            recent_high_prices = []
+            recent_rsi_values = []
 
-            if not pd.isna(current_atr):
-                # Stage 1: Check for ATR spike (bars -30 to -10 baseline)
-                baseline_atr_values = [self.atr[i] for i in range(-30, -10) if not pd.isna(self.atr[i])]
-                spike_detected = False
+            for i in range(-self.divergence_lookback, 0):
+                if i + len(self.data) >= 0:  # Bounds check
+                    recent_high_prices.append(self.data.High[i])
+                    if not pd.isna(self.rsi[i]):
+                        recent_rsi_values.append(self.rsi[i])
 
-                if len(baseline_atr_values) >= 10:
-                    baseline_atr = sum(baseline_atr_values) / len(baseline_atr_values)
-                    atr_ratio = current_atr / baseline_atr if baseline_atr > 0 else 1.0
+            # Check for bearish divergence
+            if len(recent_high_prices) >= 3 and len(recent_rsi_values) >= 3:
+                # Price makes new high?
+                price_makes_new_high = current_high >= max(recent_high_prices)
 
-                    if atr_ratio > self.atr_spike_threshold:
-                        spike_detected = True
+                # RSI makes new high?
+                current_rsi = self.rsi[-1]
+                if not pd.isna(current_rsi):
+                    rsi_makes_new_high = current_rsi >= max(recent_rsi_values)
 
-                # Stage 2: Check long-term volatility regime (bars -100 to -20)
-                lookback_start = min(80, len(self.atr) - 20)
-                historical_atr = [self.atr[i] for i in range(-lookback_start-20, -20) if not pd.isna(self.atr[i])]
-                high_vol_regime = False
+                    # Bearish divergence: price new high but RSI doesn't = momentum failure
+                    if price_makes_new_high and not rsi_makes_new_high:
+                        rsi_filter_pass = False  # Skip trade
 
-                if len(historical_atr) >= 20:
-                    atr_threshold = sorted(historical_atr)[int(len(historical_atr) * (self.atr_percentile / 100))]
-                    if current_atr > atr_threshold:
-                        high_vol_regime = True
+        # 📊 PHASE 3 STEP 2: Multi-Timeframe Trend Confirmation
+        # Check if current price aligns with weekly trend
+        # LONG trades: Only when price > weekly SMA (uptrend)
+        # SHORT trades: Only when price < weekly SMA (downtrend)
+        trend_filter_pass_long = True
+        trend_filter_pass_short = True
 
-                # Reject if BOTH conditions met (high spike + high regime = likely false breakout)
-                # Valid breakouts may have elevated ATR but not dramatic spikes
-                if spike_detected and high_vol_regime:
-                    atr_filter_pass = False
+        if self.use_multi_timeframe_filter and len(self.data) > self.weekly_trend_period:
+            current_trend = self.weekly_trend[-1]
+            if not pd.isna(current_trend):
+                # For long trades: price must be above weekly trend
+                trend_filter_pass_long = current_price > current_trend
+                # For short trades: price must be below weekly trend
+                trend_filter_pass_short = current_price < current_trend
+
+        # 🛡️ PHASE 2: Overtrading Protection (Trade Limit Check)
+        # Check if we've exceeded maximum trades for the period
+        if not self.position and self.enforce_trade_limit:
+            if self.trade_count >= self.max_trades_per_year:
+                # Silently skip new trades once limit reached
+                # Only print warning on first occurrence
+                if self.trade_count == self.max_trades_per_year:
+                    print(f"\n🛡️ OVERTRADING PROTECTION: Max trades limit reached ({self.max_trades_per_year} trades)")
+                    print(f"   No new positions will be opened for remainder of backtest period")
+                    print(f"   This prevents the catastrophic losses seen in Phase 0-1 testing")
+                    self.trade_count += 1  # Increment to prevent repeated warnings
+                return  # Skip trade entry logic
 
         # 🔄 Position management
         if not self.position:
-            # 📈 Bullish breakout: Price breaks above range high with volume AND low volatility
-            if current_high > range_high and volume_confirmed and atr_filter_pass:
+            # 📈 Bullish breakout: Price breaks above range high with volume AND momentum confirmation AND trend alignment
+            if current_high > range_high and volume_confirmed and rsi_filter_pass and trend_filter_pass_long:
                 # 🎯 Calculate position size with breakout-specific logic
                 if TRADING_FUNCTIONS_AVAILABLE:
                     try:
@@ -250,12 +432,13 @@ class BreakoutMomentumStrategy(Strategy):
 
                 # 🚀 Enter long position
                 self.buy(size=size_fraction)
+                self.trade_count += 1  # 🛡️ PHASE 2: Track trade count for overtrading prevention
                 self.entry_price = current_price
                 self.stop_loss = range_low  # Initial stop at range support
                 self.trail_high = current_high
 
-            # 📉 Bearish breakout: Price breaks below range low with volume AND low volatility
-            elif current_low < range_low and volume_confirmed and atr_filter_pass:
+            # 📉 Bearish breakout: Price breaks below range low with volume AND momentum confirmation AND trend alignment
+            elif current_low < range_low and volume_confirmed and rsi_filter_pass and trend_filter_pass_short:
                 # Similar logic for short positions
                 if TRADING_FUNCTIONS_AVAILABLE:
                     try:

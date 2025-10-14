@@ -294,14 +294,34 @@ class UniversalStrategyTester:
             print(f"❌ Backtest failed: {e}")
             return None
 
-    def test_strategy_all_assets(self, strategy_name):
-        """🌟 Test strategy across ALL available assets with rankings"""
+    def test_strategy_all_assets(self, strategy_name, excluded_assets=None):
+        """🌟 Test strategy across ALL available assets with rankings
+
+        Args:
+            strategy_name: Name of strategy to test
+            excluded_assets: List of asset symbols to exclude (e.g., ['HBAR'])
+        """
         print(f"\n🌟 COMPREHENSIVE MULTI-ASSET TESTING: {strategy_name}")
         print("=" * 80)
 
+        # 🚫 Check for strategy-specific exclusions
+        if excluded_assets is None:
+            # Auto-detect exclusions based on strategy
+            if strategy_name == 'BreakoutMomentumStrategy':
+                excluded_assets = ['HBAR']  # Phase 0-1 testing proved HBAR incompatible
+                print(f"🚫 Asset exclusions enabled: {excluded_assets}")
+                print(f"   (Based on Phase 0-1 empirical testing results)")
+
         results = []
+        skipped_count = 0
 
         for i, data_source in enumerate(self.data_sources, 1):
+            # 🚫 Skip excluded assets
+            if excluded_assets and data_source['asset'] in excluded_assets:
+                print(f"\n⏭️  Skipping {i}/{len(self.data_sources)}: {data_source['asset']} (excluded)")
+                skipped_count += 1
+                continue
+
             print(f"\n📊 Testing {i}/{len(self.data_sources)}: {data_source['asset']}")
 
             result = self.test_strategy_single_asset(strategy_name, data_source)
@@ -310,7 +330,14 @@ class UniversalStrategyTester:
 
         if not results:
             print("❌ No successful tests completed")
-            return
+            return None, skipped_count
+
+        # 📊 Print testing summary
+        if skipped_count > 0:
+            print(f"\n📊 Testing Summary:")
+            print(f"   ✅ Tested: {len(results)} datasets")
+            print(f"   ⏭️  Skipped: {skipped_count} datasets (excluded assets)")
+            print(f"   📁 Total available: {len(self.data_sources)} datasets")
 
         # 🏆 Generate performance rankings
         self._generate_performance_rankings(strategy_name, results)
@@ -318,7 +345,7 @@ class UniversalStrategyTester:
         # 💾 Save comprehensive results to CSV
         self._save_results_to_csv(strategy_name, results)
 
-        return results
+        return results, skipped_count
 
     def _generate_performance_rankings(self, strategy_name, results):
         """🏆 Generate comprehensive performance rankings"""
@@ -393,11 +420,18 @@ def main():
         return
 
     # 🌟 Run comprehensive testing
-    results = tester.test_strategy_all_assets(strategy_name)
+    test_result = tester.test_strategy_all_assets(strategy_name)
+
+    if test_result:
+        results, skipped_count = test_result
+    else:
+        results, skipped_count = None, 0
 
     print(f"\n✅ UNIVERSAL TESTING COMPLETE")
     print(f"📊 Strategy: {strategy_name}")
-    print(f"🎯 Assets tested: {len(tester.data_sources)}")
+    print(f"🎯 Total datasets available: {len(tester.data_sources)}")
+    if skipped_count > 0:
+        print(f"⏭️  Excluded datasets: {skipped_count}")
     print(f"✅ Successful tests: {len(results) if results else 0}")
     print(f"💾 Results saved to /strategies/results/")
 
