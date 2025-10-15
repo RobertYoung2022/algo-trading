@@ -67,6 +67,9 @@ class SMAStrategy(Strategy):
     def init(self):
         """🏗️ Initialize strategy indicators using @trading_functions"""
 
+        # 🎯 Track entry price manually for risk management
+        self.entry_price = None
+
         # 🛡️ Data quality validation
         if TRADING_FUNCTIONS_AVAILABLE:
             try:
@@ -155,23 +158,28 @@ class SMAStrategy(Strategy):
 
                 # 🚀 Enter long position
                 self.buy(size=size_fraction)
+                # 📝 Track entry price for risk management
+                self.entry_price = current_price
 
         elif self.position:
             # 📉 SELL signal: Fast SMA crosses below Slow SMA
             if prev_fast >= prev_slow and fast_sma < slow_sma:
                 self.position.close()
+                self.entry_price = None  # Reset entry price
 
-            # 🛡️ Risk management exits
-            entry_price = self.position.entry_price
-            current_pnl_pct = (current_price - entry_price) / entry_price * 100
+            # 🛡️ Risk management exits (only if we have tracked entry price)
+            elif self.entry_price is not None:
+                current_pnl_pct = (current_price - self.entry_price) / self.entry_price * 100
 
-            # Stop loss
-            if current_pnl_pct <= -self.stop_loss_pct:
-                self.position.close()
+                # Stop loss
+                if current_pnl_pct <= -self.stop_loss_pct:
+                    self.position.close()
+                    self.entry_price = None  # Reset entry price
 
-            # Take profit
-            elif current_pnl_pct >= self.take_profit_pct:
-                self.position.close()
+                # Take profit
+                elif current_pnl_pct >= self.take_profit_pct:
+                    self.position.close()
+                    self.entry_price = None  # Reset entry price
 
 
 def test_sma_strategy_single_asset(data_path, symbol='BTC', display_stats=True):
