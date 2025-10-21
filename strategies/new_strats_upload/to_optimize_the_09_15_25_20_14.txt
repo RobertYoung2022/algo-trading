@@ -1,0 +1,64 @@
+Trading Strategy Instructions for AI to Code the Backtest:
+
+Strategy Name: Dual Moving Average Crossover Strategy with Risk Management
+
+Objective: To create a dual moving average crossover system that triggers buy and sell signals, alongside implementing risk management techniques to optimize the strategy's performance and minimize potential drawdowns.
+
+Strategy Details:
+1. Selection of Financial Instrument:
+   - Choose a liquid financial instrument that exhibits clear trends. This strategy applies to stocks, forex, commodities, or indices.
+
+2. Time Frame for Analysis:
+   - Utilize daily time frames for signal generation.
+
+3. Indicators and Parameters:
+   - Use two Simple Moving Averages (SMAs) with the following periods:
+     - Short-term SMA: 50-day period
+     - Long-term SMA: 200-day period
+
+4. Entry Conditions:
+   - Buy Signal: Generate a buy signal when the 50-day SMA crosses above the 200-day SMA (Golden Cross).
+   - Sell Signal: Generate a sell signal when the 50-day SMA crosses below the 200-day SMA (Death Cross).
+
+5. Exit Conditions:
+   - Close a buy position when the 50-day SMA crosses below the 200-day SMA.
+   - Close a sell position when the 50-day SMA crosses above the 200-day SMA.
+
+6. Position Sizing and Risk Management:
+   - Determine the maximum allowable risk per trade, typically between 1% - 2% of the trading account balance.
+   - Calculate the position size based on the stop-loss level and the maximum allowable risk. The position size = (Account Balance * Max Risk) / Stop Loss in price units.
+   - Place stop-loss orders to limit losses. The initial stop-loss should be set at a previous swing high or low, with a buffer (e.g., a percentage of the Average True Range (ATR)).
+
+7. Trailing Stop-Loss:
+   - Once a trade becomes profitable, employ a trailing stop-loss to protect gains and enable the position to capture further upside. The trailing stop can be a fixed dollar amount or a percentage below the highest price achieved since entry.
+
+8. Additional Risk Controls:
+   - Implement a maximum drawdown threshold for the overall portfolio. If the drawdown exceeds this value, halt trading temporarily.
+   - Include provisions for skipping the next trade if the previous trade was a significant loss, in order to prevent emotional trading and over-leveraging.
+
+9. Backtesting Criteria:
+   - Backtest the strategy over at least five years of historical data to capture different market conditions.
+   - Evaluate performance metrics like total return, maximum drawdown, win rate, and Sharpe ratio.
+   - Consider transaction costs, slippage, and potential impact on results.
+
+Instructions for Other AI to Build the Backtest:
+
+1. Import historical daily price data for the chosen financial instrument spanning a minimum of five years.
+
+2. Calculate the 50-day and 200-day SMAs for the entire data set.
+
+3. Identify all crossover points where either the 50-day SMA crosses above or below the 200-day SMA.
+
+4. Simulate entry and exit trades based on the crossover points while adhering to the position sizing and risk management rules.
+
+5. Set initial stop-loss levels for each trade and adjust for trailing stop-losses as per instructions.
+
+6. Record each trade's entry, exit, position size, profit/loss, and any drawdown experienced.
+
+7. After completing the backtest, aggregate the trades to compute total return, maximum drawdown, win rate, and Sharpe ratio, taking into account transaction costs and slippage.
+
+8. Implement the maximum drawdown threshold logic to halt trading when necessary.
+
+9. Execute the backtest code ensuring that there are no lookahead biases, meaning that future information is not used in historical trading decisions.
+
+Your output will be a detailed backtesting report that covers the trading strategy's performance, consistency, and risks, providing an evidence-based assessment of the strategy's viability in historical market conditions.

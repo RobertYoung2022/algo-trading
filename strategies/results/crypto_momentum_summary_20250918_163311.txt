@@ -1,0 +1,12 @@
+Crypto Momentum Strategy - Multi-Asset Test Results
+=============================================================
+Test Date: 2025-09-18 16:33:11
+Strategy: CryptoMomentumSurgeStrategy
+Total Tests: 4
+Assets Tested: 1
+
+Performance Summary:
+Average Return: 343.34%
+Average Sharpe: 0.63
+Average Win Rate: 53.38%
+Average Max DD: -17.86%

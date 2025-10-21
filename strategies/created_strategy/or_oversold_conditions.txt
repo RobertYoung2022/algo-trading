@@ -1,0 +1,63 @@
+Trading Strategy: "Moving Average Crossover with RSI Filter"
+
+1. **Objective:**
+   The strategy aims to identify potential buy and sell signals based on a simple moving average (SMA) crossover system, filtered by the Relative Strength Index (RSI) to avoid overbought or oversold conditions.
+
+2. **Strategy Details:**
+
+   - **Instruments:** The strategy can be applied to any tradable financial instrument (stocks, forex, commodities, etc.).
+   - **Timeframe:** Daily charts will be used for signaling.
+   - **Indicators:** 
+     - Simple Moving Average (SMA) with two periods: Short-term (SMA 50) and long-term (SMA 200).
+     - Relative Strength Index (RSI) with a period of 14 days.
+   
+   - **Buy Signal Conditions:**
+     - **Primary Condition:** The short-term SMA (50) crosses above the long-term SMA (200). This indicates a potential change in trend from bearish to bullish.
+     - **Filter Condition:** The RSI must be above 30 and below 70 at the time of the SMA crossover to avoid extremes in market conditions that may signal a short-term trend reversal or consolidation period.
+     - **Action:** When both conditions are met, enter a long position (buy) at the opening price the following trading day.
+
+   - **Sell Signal Conditions:**
+     - **Primary Condition:** The short-term SMA (50) crosses below the long-term SMA (200). This indicates a potential change in trend from bullish to bearish.
+     - **Filter Condition:** The RSI must be above 30 and below 70 at the time of the SMA crossover to avoid extremes in market conditions that may signal a short-term trend reversal or consolidation period.
+     - **Action:** When both conditions are met, close the long position (sell) at the opening price the following trading day.
+
+   - **Position Sizing:**
+     - Position size can be a fixed percentage of the portfolio or varied based on other risk management techniques (not specified in this strategy).
+   
+   - **Stop-Loss/Take-Profit:**
+     - A stop-loss and take-profit strategy can be defined based on the trader's risk appetite (not specified in this strategy).
+
+   - **Exit Strategy:**
+     - In addition to selling on the SMA crossover, an exit can also be triggered if the RSI crosses above 70 (which could be indicative of overbought conditions) or below 30 (which could indicate oversold conditions). This is a risk management tactic to prevent holding onto positions that go against the predicted trend.
+
+3. **Backtesting Instructions:**
+
+   - **Data Requirements:**
+     - Collect historical daily price data for the chosen instrument with a minimum time span covering enough periods for the SMAs and RSI.
+   
+   - **Indicator Calculations:**
+     - Calculate the 50-period and 200-period SMAs of the closing prices for each day.
+     - Calculate the 14-day RSI for each day.
+
+   - **Signal Identification:**
+     - Detect crossover points when the SMA 50 crosses above or below the SMA 200.
+     - Check if the RSI is between 30 and 70 at those crossover points to validate signals.
+
+   - **Trade Execution Logic:**
+     - Simulate buy orders at the opening price of the day following a valid buy signal; simulate sell orders at the opening price of the day following a valid sell signal.
+
+   - **Risk Management:**
+     - Implement optional stop-loss or take-profit levels if desired.
+     - Record the exit points based on RSI crossing above 70 or below 30.
+
+   - **Performance Metrics:**
+     - Calculate net profit/loss.
+     - Calculate other performance metrics such as win rate, maximum drawdown, Sharpe ratio, etc.
+
+   - **Backtesting Period:**
+     - Backtest the strategy over a significant historical period, typically a minimum of 3-5 years to account for different market conditions.
+
+   - **Transaction Costs:**
+     - Incorporate realistic transaction costs to account for slippage and brokerage fees in the backtest.
+
+By following these detailed instructions, another AI or a developer can create a backtesting script to evaluate the performance of this Moving Average Crossover with RSI Filter trading strategy.
