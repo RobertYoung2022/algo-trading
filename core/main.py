@@ -35,6 +35,7 @@ warnings.filterwarnings('ignore')
 
 # 🚀 Add project path
 sys.path.append('/Users/bobbyyo/Projects/algo-fun')
+sys.path.append('/Users/bobbyyo/Projects/algo-fun/core')
 
 # 🎯 Import core components
 try:
