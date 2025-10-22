@@ -1,0 +1,27 @@
+[Unit]
+Description=ETH Multi-Strategy Rotation Trading Bot
+After=network.target
+Documentation=https://github.com/YOUR_USERNAME/algo-fun
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/algo-fun
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 -u trading/main_trading_loop.py
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=algo-trading
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

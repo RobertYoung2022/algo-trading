@@ -134,3 +134,4 @@ results/*.jpeg
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.env.ai
