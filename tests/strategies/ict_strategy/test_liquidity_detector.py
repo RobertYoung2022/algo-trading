@@ -6,7 +6,7 @@ from strategies.ict_strategy.models.liquidity_pool import LiquidityType
 def test_detect_liquidity_pools():
     """Test detection of liquidity pools at highs and lows"""
     # Create data with clear swing highs and lows
-    dates = pd.date_range(start='2025-01-01', periods=20, freq='1H')
+    dates = pd.date_range(start='2025-01-01', periods=20, freq='1h')
     prices = [100, 102, 105, 103, 101,  # Swing high at 105
               99, 97, 95, 97, 99,        # Swing low at 95
               102, 105, 108, 106, 104,   # Swing high at 108
@@ -40,7 +40,7 @@ def test_liquidity_sweep():
     detector = LiquidityDetector(lookback=2)
 
     # Create a liquidity pool at 105
-    dates = pd.date_range(start='2025-01-01', periods=10, freq='1H')
+    dates = pd.date_range(start='2025-01-01', periods=10, freq='1h')
     data = pd.DataFrame({
         'open':  [100, 102, 105, 103, 101, 102, 103, 106, 104, 102],
         'high':  [101, 103, 106, 104, 102, 103, 104, 107, 105, 103],
