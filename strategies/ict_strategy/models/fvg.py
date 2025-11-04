@@ -25,6 +25,7 @@ class FVG:
     quality_score: float  # From DataQualityValidator (0-100)
     fill_percentage: float = 0.0
     invalidated: bool = False
+    aligned_with_htf: bool = False  # Whether FVG aligns with higher timeframe bias
 
     def __post_init__(self):
         """Validate edge cases on initialization"""
