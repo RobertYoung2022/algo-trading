@@ -11,7 +11,7 @@ def test_detect_bullish_fvg():
     # Candle 2: Big up move (doesn't matter)
     # Candle 3: Open/Low at 105 (gap above candle 1 high of 101)
 
-    dates = pd.date_range(start='2025-01-01', periods=10, freq='1H')
+    dates = pd.date_range(start='2025-01-01', periods=10, freq='1h')
     data = pd.DataFrame({
         'open':  [100, 102, 105, 106, 107, 108, 109, 110, 111, 112],
         'high':  [101, 104, 106, 107, 108, 109, 110, 111, 112, 113],
@@ -20,7 +20,7 @@ def test_detect_bullish_fvg():
         'volume': [1000] * 10
     }, index=dates)
 
-    detector = FVGDetector(timeframe='1H', min_gap_size=1.0)
+    detector = FVGDetector(timeframe='1h', min_gap_size=1.0)
     fvgs = detector.detect(data)
 
     assert len(fvgs) >= 1
@@ -38,7 +38,7 @@ def test_detect_bearish_fvg():
     # Candle 2: Big down move
     # Candle 3: High at 101 (gap below candle 1 low of 104)
 
-    dates = pd.date_range(start='2025-01-01', periods=10, freq='1H')
+    dates = pd.date_range(start='2025-01-01', periods=10, freq='1h')
     data = pd.DataFrame({
         'open':  [105, 103, 100, 99, 98, 97, 96, 95, 94, 93],
         'high':  [106, 103, 101, 99, 98, 97, 96, 95, 94, 93],
@@ -47,7 +47,7 @@ def test_detect_bearish_fvg():
         'volume': [1000] * 10
     }, index=dates)
 
-    detector = FVGDetector(timeframe='1H', min_gap_size=1.0)
+    detector = FVGDetector(timeframe='1h', min_gap_size=1.0)
     fvgs = detector.detect(data)
 
     assert len(fvgs) >= 1
@@ -61,9 +61,13 @@ def test_detect_bearish_fvg():
 
 def test_no_fvg_on_continuous_price():
     """Test that no FVG is detected when there's no gap"""
-    dates = pd.date_range(start='2025-01-01', periods=10, freq='1H')
+    dates = pd.date_range(start='2025-01-01', periods=10, freq='1h')
     # Overlapping candles - each candle's range overlaps with next
     # No gap between candle[0].high and candle[2].low
+
+    # Note: Original plan data had 1-point gaps between candles, which would
+    # incorrectly trigger FVG detection with min_gap_size=1.0.
+    # This data uses overlapping ranges to ensure truly continuous price action.
     data = pd.DataFrame({
         'open':  [100, 100.5, 101, 101.5, 102, 102.5, 103, 103.5, 104, 104.5],
         'high':  [102, 102.5, 103, 103.5, 104, 104.5, 105, 105.5, 106, 106.5],
@@ -72,7 +76,7 @@ def test_no_fvg_on_continuous_price():
         'volume': [1000] * 10
     }, index=dates)
 
-    detector = FVGDetector(timeframe='1H', min_gap_size=1.0)
+    detector = FVGDetector(timeframe='1h', min_gap_size=1.0)
     fvgs = detector.detect(data)
 
     assert len(fvgs) == 0
