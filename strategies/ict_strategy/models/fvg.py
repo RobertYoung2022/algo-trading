@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 class FVGType(Enum):
     BULLISH = "bullish"
@@ -26,6 +25,17 @@ class FVG:
     quality_score: float  # From DataQualityValidator (0-100)
     fill_percentage: float = 0.0
     invalidated: bool = False
+
+    def __post_init__(self):
+        """Validate edge cases on initialization"""
+        if self.gap_high <= self.gap_low:
+            raise ValueError(f"gap_high ({self.gap_high}) must be > gap_low ({self.gap_low})")
+        if self.high < self.low:
+            raise ValueError(f"high ({self.high}) must be >= low ({self.low})")
+        if not (0 <= self.quality_score <= 100):
+            raise ValueError(f"quality_score ({self.quality_score}) must be between 0 and 100")
+        if not (0 <= self.fill_percentage <= 100):
+            raise ValueError(f"fill_percentage ({self.fill_percentage}) must be between 0 and 100")
 
     @property
     def gap_size(self) -> float:
