@@ -2,12 +2,17 @@
 """
 ICT Signal Generator - Generate trading signals based on ICT methodology
 Adapted for algo-fun project structure
+
+Phase 2 Update: Now uses standalone confirmation pattern modules
 """
 
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+
+# Import confirmation pattern modules
+from strategies.ict_strategy.confirmations import check_all_confirmations
 
 class ICTSignalGenerator:
     """Generate ICT trading signals with confirmations"""
@@ -114,23 +119,16 @@ class ICTSignalGenerator:
 
     def get_confirmations(self, df: pd.DataFrame, direction: str,
                          key_level: float) -> List[str]:
-        """Check all confirmation patterns"""
-        confirmations = []
+        """
+        Check all confirmation patterns using standalone modules
 
+        Phase 2 Update: Uses modular confirmation patterns for better maintainability
+        """
         # Direction for confirmations
         conf_direction = 'bullish' if direction == 'long' else 'bearish'
 
-        if self.check_inverted_fvg(df, conf_direction):
-            confirmations.append('IFVG')
-
-        if self.check_cisd(df, conf_direction):
-            confirmations.append('CISD')
-
-        if self.check_sfp(df, conf_direction, key_level):
-            confirmations.append('SFP')
-
-        if self.check_market_structure_shift(df, conf_direction):
-            confirmations.append('MSS')
+        # Use the consolidated check_all_confirmations function
+        confirmations = check_all_confirmations(df, conf_direction, key_level)
 
         return confirmations
 
@@ -258,13 +256,18 @@ class ICTSignalGenerator:
         levels = self.calculate_entry_levels(df_lower, direction, key_level)
         signal.update(levels)
 
-        # Determine confidence based on confirmations
-        if len(confirmations) >= 3:
+        # Determine confidence based on confirmations (Phase 2: Updated thresholds)
+        # With 5 confirmation patterns available (IFVG, CISD, SFP, MSS, OB)
+        if len(confirmations) >= 4:
+            signal['confidence'] = 'very_high'
+        elif len(confirmations) == 3:
             signal['confidence'] = 'high'
         elif len(confirmations) == 2:
             signal['confidence'] = 'medium'
-        else:
+        elif len(confirmations) == 1:
             signal['confidence'] = 'low'
+        else:
+            signal['confidence'] = 'very_low'
 
         # Check R:R ratio
         if signal['rr_ratio'] >= 1.5:
