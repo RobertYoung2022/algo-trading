@@ -34,9 +34,20 @@ class ICTSessionManager:
 
         self.key_levels = {}
 
-    def get_current_session(self) -> str:
-        """Get the current active trading session"""
-        current_hour = datetime.now(timezone.utc).hour
+    def get_current_session(self, timestamp: Optional[datetime] = None) -> str:
+        """
+        Get the active trading session for given time
+
+        Args:
+            timestamp: Optional datetime to check. If None, uses current time.
+
+        Returns:
+            Session name (london_ny_overlap, london, ny, asia, off_hours)
+        """
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc)
+
+        current_hour = timestamp.hour
 
         # Check overlaps first (highest priority)
         london_ny_start, london_ny_end = self.overlap_times['london_ny']
@@ -54,9 +65,17 @@ class ICTSessionManager:
 
         return 'off_hours'
 
-    def is_high_probability_session(self) -> bool:
-        """Check if current time is high probability for trading"""
-        session = self.get_current_session()
+    def is_high_probability_session(self, timestamp: Optional[datetime] = None) -> bool:
+        """
+        Check if given time is high probability for trading
+
+        Args:
+            timestamp: Optional datetime to check. If None, uses current time.
+
+        Returns:
+            True if high probability session, False otherwise
+        """
+        session = self.get_current_session(timestamp)
         return session in ['london_ny_overlap', 'london', 'ny']
 
     def mark_session_liquidity(self, df: pd.DataFrame) -> Dict:
@@ -256,15 +275,26 @@ class ICTSessionManager:
             'swept_lows': len(swept_lows)
         }
 
-    def get_session_info(self) -> Dict:
-        """Get comprehensive session information"""
-        current_session = self.get_current_session()
-        is_high_prob = self.is_high_probability_session()
+    def get_session_info(self, timestamp: Optional[datetime] = None) -> Dict:
+        """
+        Get comprehensive session information
+
+        Args:
+            timestamp: Optional datetime to check. If None, uses current time.
+
+        Returns:
+            Dict with session details
+        """
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc)
+
+        current_session = self.get_current_session(timestamp)
+        is_high_prob = self.is_high_probability_session(timestamp)
 
         return {
             'current_session': current_session,
             'is_high_probability': is_high_prob,
-            'current_time_utc': datetime.now(timezone.utc).isoformat(),
+            'current_time_utc': timestamp.isoformat(),
             'recommendation': self._get_session_recommendation(current_session),
             'key_levels_count': len(self.key_levels),
             'untapped_levels': len([l for l in self.key_levels.values() if not l['tapped']])
@@ -281,14 +311,17 @@ class ICTSessionManager:
         }
         return recommendations.get(session, 'NEUTRAL')
 
-    def should_trade_now(self) -> Tuple[bool, str]:
+    def should_trade_now(self, timestamp: Optional[datetime] = None) -> Tuple[bool, str]:
         """
-        Determine if current time is suitable for trading
+        Determine if given time is suitable for trading
+
+        Args:
+            timestamp: Optional datetime to check. If None, uses current time.
 
         Returns:
             Tuple of (should_trade: bool, reason: str)
         """
-        session = self.get_current_session()
+        session = self.get_current_session(timestamp)
 
         if session == 'london_ny_overlap':
             return True, 'Optimal trading window - London/NY overlap'

@@ -26,7 +26,7 @@ def check_mss(df: pd.DataFrame, direction: str) -> bool:
     Returns:
         True if MSS pattern is detected, False otherwise
     """
-    if len(df) < 20:
+    if len(df) < 30:
         return False
 
     # Find swing points using rolling windows

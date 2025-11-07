@@ -29,7 +29,7 @@ def check_ifvg(df: pd.DataFrame, direction: str) -> bool:
     if len(df) < 5:
         return False
 
-    recent = df.tail(10)  # Check last 10 candles for pattern
+    recent = df.tail(20)  # Check last 20 candles for pattern (increased from 10)
 
     for i in range(2, len(recent)):
         current = recent.iloc[i]

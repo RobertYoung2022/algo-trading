@@ -1,0 +1,114 @@
+PROBLEM: ICT Trading Strategy - Zero Trades Recorded
+
+SYMPTOMS:
+- Strategy calls self.buy() and self.sell() 7,348 times
+- Debug logs show "✅ LONG BUY EXECUTED" and "✅ SHORT SELL EXECUTED"
+- However, backtesting.py records stats['# Trades'] = 0.0
+- No warning messages or errors visible
+- Exposure Time = 0%, indicating no positions were ever held
+
+CONTEXT:
+Using Python's backtesting.py library with the following strategy pattern:
+
+```python
+def _check_entry_signal(self):
+    # Generate dataframes for analysis
+    df_higher = pd.DataFrame({'open': self.data.Open[-200:], ...})
+    df_lower = pd.DataFrame({'open': self.data.Open[-100:], ...})
+
+    # Try both long and short directions
+    for direction in ['long', 'short']:
+        signal = self.signal_generator.generate_signal(
+            df_higher=df_higher,
+            df_lower=df_lower,
+            symbol='BACKTEST',
+            direction=direction
+        )
+
+        if signal['valid'] and len(signal['confirmations']) >= self.min_confirmations:
+            position_info = self.risk_manager.calculate_position_size(signal)
+
+            if position_info['can_trade']:
+                # Calculate position size
+                risk_amount = position_info['risk_amount']
+                stop_distance = abs(signal['entry'] - signal['stop'])
+                units_to_buy = risk_amount / stop_distance
+
+                # Cap position at 2% of equity
+                max_position_value = self.equity * 0.02
+                max_units = max_position_value / current_price
+                units_to_buy = min(units_to_buy, max_units)
+
+                # Convert to equity fraction
+                position_value = units_to_buy * current_price
+                equity_fraction = position_value / self.equity
+
+                if direction == 'long' and not self.position and equity_fraction > 0:
+                    self.buy(size=equity_fraction)  # Equity fraction (e.g., 0.02 = 2%)
+                    self.trades_executed += 1
+                    return
+
+                elif direction == 'short' and not self.position and equity_fraction > 0:
+                    self.sell(size=equity_fraction)  # Equity fraction (e.g., 0.02 = 2%)
+                    self.trades_executed += 1
+                    return
+```
+
+BACKTEST CONFIGURATION:
+```python
+bt = Backtest(df, ICTStrategy, cash=1000000, commission=0.002, exclusive_orders=True)
+stats = bt.run()
+```
+
+DATA:
+- Asset: BTC/USD
+- Timeframe: 1 Hour
+- Bars: 8,700 (approximately 1 year)
+- Price range: $49,803 - $108,276
+- Starting capital: $1,000,000
+
+DEBUG OUTPUT:
+```
+🔍 TRADE DEBUG #1:
+   Direction: short
+   Current price: $57037.33
+   Units to buy: 0.350648
+   Position value: $20000.00
+   Equity: $1000000.00
+   Equity fraction: 0.020000 (2.00%)
+   Has position: False
+   ✅ SHORT SELL EXECUTED
+
+[... 7,347 more similar attempts ...]
+
+🔍 DEBUG STATISTICS
+Trades executed: 7348
+Actual trades from stats: 0.0
+# Trades                                  0.0
+```
+
+FIXES ATTEMPTED (All Failed):
+1. ✅ Changed loop control from `break` to `return`
+2. ✅ Added `exclusive_orders=True` to Backtest initialization
+3. ✅ Added flag to prevent multiple trades per bar (`self.trade_attempted_this_bar`)
+4. ✅ Increased capital from $10,000 to $1,000,000
+5. ✅ Changed `min_confirmations` from 0 to 1
+6. ✅ Removed the trade attempt flag
+7. ✅ Verified framework works with simple test strategy (1 trade executed successfully)
+
+KEY OBSERVATIONS:
+- Simple test strategy (buy at bar 100, sell at bar 200) WORKS and records 1 trade
+- ICT strategy shows self.position = False even after calling self.buy() or self.sell()
+- The loop tries BOTH long and short directions on SAME bar
+- Equity fraction is valid (0.02 = 2% of capital = $20,000 position)
+- No Python exceptions or backtesting.py warnings
+
+QUESTION:
+Why is backtesting.py accepting the self.buy() and self.sell() calls (no errors) but not recording any actual trades? What is the root cause and how can we fix it?
+
+Please analyze this comprehensively and provide:
+1. Root cause diagnosis
+2. Specific code fix
+3. Explanation of why this happens
+
+The strategy previously worked in April 2025 with 4 trades recorded successfully, but now records 0 trades with the same code.

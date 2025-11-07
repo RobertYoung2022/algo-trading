@@ -42,7 +42,7 @@ def check_cisd(df: pd.DataFrame, direction: str) -> bool:
         is_prev_red = previous['close'] < previous['open']
         engulfs_low = current['open'] <= previous['close']
         engulfs_high = current['close'] >= previous['open']
-        significant_body = current_body > prev_body * 1.2  # Changed from 1.5 to 1.2 for crypto
+        significant_body = current_body > prev_body * 1.1  # Changed from 1.2 to 1.1 for increased signal frequency
 
         return (is_current_green and is_prev_red and engulfs_low and
                 engulfs_high and significant_body)
@@ -52,7 +52,7 @@ def check_cisd(df: pd.DataFrame, direction: str) -> bool:
         is_prev_green = previous['close'] > previous['open']
         engulfs_high = current['open'] >= previous['close']
         engulfs_low = current['close'] <= previous['open']
-        significant_body = current_body > prev_body * 1.2
+        significant_body = current_body > prev_body * 1.1  # Changed from 1.2 to 1.1 for increased signal frequency
 
         return (is_current_red and is_prev_green and engulfs_high and
                 engulfs_low and significant_body)

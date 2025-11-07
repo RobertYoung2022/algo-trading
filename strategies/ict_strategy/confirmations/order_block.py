@@ -15,14 +15,14 @@ import pandas as pd
 from typing import Dict, Optional
 
 
-def check_order_block(df: pd.DataFrame, direction: str, move_threshold: float = 0.02) -> bool:
+def check_order_block(df: pd.DataFrame, direction: str, move_threshold: float = 0.01) -> bool:
     """
     Check for Order Block pattern
 
     Args:
         df: DataFrame with OHLC data
         direction: 'bullish' or 'bearish'
-        move_threshold: Minimum price move percentage to qualify as displacement (default 2%)
+        move_threshold: Minimum price move percentage to qualify as displacement (default 1%, lowered from 2% for 1H timeframe)
 
     Returns:
         True if Order Block pattern is detected, False otherwise
@@ -100,7 +100,7 @@ def calculate_ob_strength(candle: pd.Series, move_size: float) -> str:
         return 'weak'
 
 
-def identify_order_block_detailed(df: pd.DataFrame, direction: str, move_threshold: float = 0.02) -> Optional[Dict]:
+def identify_order_block_detailed(df: pd.DataFrame, direction: str, move_threshold: float = 0.01) -> Optional[Dict]:
     """
     Identify Order Block with detailed information
 

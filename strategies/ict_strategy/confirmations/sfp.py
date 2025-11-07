@@ -30,7 +30,7 @@ def check_sfp(df: pd.DataFrame, direction: str, key_level: float) -> bool:
     if len(df) < 3:
         return False
 
-    recent = df.tail(5)  # Check last 5 candles
+    recent = df.tail(10)  # Check last 10 candles (increased from 5)
     buffer = 0.002  # 0.2% buffer for sweep detection
 
     for _, candle in recent.iterrows():
